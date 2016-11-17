@@ -1,0 +1,21 @@
+# Deployment definitions
+home_domain={{clearwater.public_domain}}
+sprout_hostname=sprout.{{clearwater.private_domain}}
+hs_hostname=hs.{{clearwater.private_domain}}:8888
+hs_provisioning_hostname=hs.{{clearwater.private_domain}}:8889
+ralf_hostname=ralf.{{clearwater.private_domain}}:10888
+xdms_hostname=homer.{{clearwater.private_domain}}:7888
+
+# Email server configuration
+smtp_smarthost=localhost
+#smtp_username=<username>
+#smtp_password=<password>
+email_recovery_sender=clearwater@example.org
+
+# Keys
+signup_key={{ signup_key }}
+turn_workaround={{ turn_workaround }}
+ellis_api_key={{ ellis_api_key }}
+ellis_cookie_key={{ ellis_cookie_key }}
+
+

@@ -1,0 +1,2 @@
+{% for server in clearwater.dns_servers %}server={{server}}
+{% endfor %}

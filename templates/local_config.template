@@ -1,0 +1,4 @@
+local_ip={{host.ip}}
+public_ip={{host.ip}}
+public_hostname={{host.name}}
+etcd_cluster="{{ clearwater.hosts | map(attribute="ip") | sort | join(",") }}"
