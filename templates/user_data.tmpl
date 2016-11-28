@@ -8,13 +8,18 @@ apt-get install -y python3 python3-pip git python-virtualenv
 virtualenv -p python3 /opt/inmanta
 /opt/inmanta/bin/pip3 install -U pip
 /opt/inmanta/bin/pip3 install -U setuptools
-/opt/inmanta/bin/pip3 install inmanta
+
+#/opt/inmanta/bin/pip3 install inmanta
+git clone https://github.com/inmanta/inmanta
+cd inmanta
+/opt/inmanta/bin/pip3 install .
 
 mkdir -p /etc/inmanta
 cat > /etc/inmanta/agent.cfg <<EOF
 [config]
 heartbeat-interval = 60
 fact-expire = 60
+agent-interval = 60
 state-dir=/var/lib/inmanta
 
 environment={{ env_id }}
