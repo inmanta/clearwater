@@ -1,0 +1,47 @@
+import heka::decoder
+import heka
+import lma
+import clearwater::openstack
+import collectd::plugins
+import openstack
+
+implementation logDecoders for std::HostConfig:
+    heka::LuaModule(hekad=host.lma_collector.hekad, name="clearwater_log", type="decoders",
+                    module=std::source("clearwater/lma/clearwater_log.lua"),
+                    module_dir=host.lma_collector.module_dir)
+    heka::decoder::Sandbox(hekad=host.lma_collector.hekad, name="clearwater", lua_module="clearwater_log",
+                           module_dir=host.lma_collector.module_dir)
+end
+implement std::HostConfig using logDecoders when host.monitor is defined
+
+implementation vnfTags for clearwater::openstack::Host:
+    self.tags = [lma::Tag(key="vnf", value=self.vnf.name)]
+end
+
+implementation infraTags for openstack::Host:
+    self.tags = [lma::Tag(key="infra", value="true")]
+end
+
+implement clearwater::openstack::Host using vnfTags when monitor is defined
+implement openstack::Host using infraTags when monitor is defined
+
+implementation bonoSNMP for clearwater::openstack::Host:
+    agent = lma_collector.collectd_agent
+    snmp = collectd::plugins::SNMP(agent=agent, hosts=this, data=[latency])
+    latency = collectd::plugins::SNMPData(name="bono.latency", type="latency",
+                                          values=[".1.2.826.0.1.1578918.9.2.2.1.6.1.4.110.111.100.101"], instance="bono")
+    this = collectd::plugins::SNMPHost(collect=[latency], version=2, community="clearwater", hostname=name, ip=ip)
+end
+
+implement clearwater::openstack::Host using bonoSNMP when monitor is defined and vnf.name == "bono"
+
+implementation sproutSNMP for clearwater::openstack::Host:
+    agent = lma_collector.collectd_agent
+    snmp = collectd::plugins::SNMP(agent=agent, hosts=this, data=[latency])
+
+    latency = collectd::plugins::SNMPData(name="sprout.latency", type="latency",
+                                          values=[".1.2.826.0.1.1578918.9.3.1.1.6.1.4.110.111.100.101"], instance="sprout")
+    this = collectd::plugins::SNMPHost(collect=[latency], version=2, community="clearwater", hostname=name, ip=ip)
+end
+
+implement clearwater::openstack::Host using sproutSNMP when monitor.collectd_feature is defined and vnf.name == "sprout"

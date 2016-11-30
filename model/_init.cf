@@ -4,6 +4,7 @@ import ip
 import dns
 import param
 import exec
+import logging
 
 entity ClearWater:
     string public_domain
@@ -108,6 +109,9 @@ end
 ## Homer
 implementation homer for Homer:
     std::Package(host=host, name="homer-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+
+    logging::LogDir(host=host, name="homer", path="/var/log/homer", matches="homer_(?P<date>\d+)T(?P<time>\d+)Z.txt",
+                    priority=["date", "time"], type="clearwater")
 end
 
 implementation homerDNS for Homer:
@@ -120,6 +124,9 @@ implement Homer using homerDNS when clearwater.create_dns_records
 ## Ellis
 implementation ellis for Ellis:
     p = std::Package(host=host, name="ellis-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+
+    logging::LogDir(host=host, name="ellis", path="/var/log/ellis", matches="ellis_(?P<date>\d+)T(?P<time>\d+)Z.txt",
+                    priority=["date", "time"], type="clearwater")
 
     # generate secrets
     signup_key=std::generate_password("cw_signup_key")
@@ -169,7 +176,11 @@ implement Homestead using homesteadDNS when clearwater.create_dns_records
 ## Bono
 implementation bono for Bono:
     std::Package(host=host, name="bono-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmp-handler-bono", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
     std::Package(host=host, name="restund", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+
+    logging::LogDir(host=host, name="bono", path="/var/log/bono", matches="bono_(?P<date>\d+)T(?P<time>\d+)Z.txt",
+                    priority=["date", "time"], type="clearwater")
 end
 
 implementation bonoDNS for Bono:
@@ -190,6 +201,8 @@ implement Bono using bonoDNS when clearwater.create_dns_records
 ## Ralf
 implementation ralf for Ralf:
     std::Package(host=host, name="ralf-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    logging::LogDir(host=host, name="ralf", path="/var/log/ralf", matches="ralf_(?P<date>\d+)T(?P<time>\d+)Z.txt",
+                    priority=["date", "time"], type="clearwater")
 end
 
 implementation ralfDNS for Ralf:
@@ -202,6 +215,9 @@ implement Ralf using ralfDNS when clearwater.create_dns_records
 ## Sprout
 implementation sprout for Sprout:
     std::Package(host=host, name="sprout-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+
+    logging::LogDir(host=host, name="sprout", path="/var/log/sprout", matches="sprout_(?P<date>\d+)T(?P<time>\d+)Z.txt",
+                    priority=["date", "time"], type="clearwater")
 end
 
 implementation sproutMemento for Sprout:
