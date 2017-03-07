@@ -104,8 +104,8 @@ end
 
 implementation mInmantaAgent for openstack::Host:
     env_id = std::environment()
-    port = 8080
-    env_server = "demo.inmanta.com"
+    port = std::server_port()
+    env_server = std::environment_server()
 
     self.user_data = std::template("clearwater/user_data.tmpl")
 end

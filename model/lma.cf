@@ -33,7 +33,7 @@ implementation bonoSNMP for clearwater::openstack::Host:
     this = collectd::plugins::SNMPHost(collect=[latency], version=2, community="clearwater", hostname=name, ip=ip)
 end
 
-implement clearwater::openstack::Host using bonoSNMP when monitor is defined and vnf.name == "bono"
+implement clearwater::openstack::Host using bonoSNMP when monitor is defined and monitor.collectd_feature is defined and vnf.name == "bono"
 
 implementation sproutSNMP for clearwater::openstack::Host:
     agent = lma_collector.collectd_agent
@@ -44,4 +44,4 @@ implementation sproutSNMP for clearwater::openstack::Host:
     this = collectd::plugins::SNMPHost(collect=[latency], version=2, community="clearwater", hostname=name, ip=ip)
 end
 
-implement clearwater::openstack::Host using sproutSNMP when monitor.collectd_feature is defined and vnf.name == "sprout"
+implement clearwater::openstack::Host using sproutSNMP when monitor is defined and monitor.collectd_feature is defined and vnf.name == "sprout"
