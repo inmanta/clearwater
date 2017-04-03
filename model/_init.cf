@@ -144,12 +144,11 @@ implementation ellis for Ellis:
                         requires=p, reload=true)
     ccs = std::ConfigFile(host=host, path="/usr/bin/cw_config_setup", content=std::source("clearwater/config_setup.sh"),
                           mode=755)
-    config = exec::Run(host=host, command="/usr/bin/cw_config_setup",
-                       requires=[f, ccs])
+    config = exec::Run(host=host, command="/usr/bin/cw_config_setup", requires=[f, ccs])
 
     # provision telephone numbers (run this everytime, it is idempotent
     exec::Run(host=host, command="/usr/share/clearwater/ellis/env/bin/python create_numbers.py --start {{ base_number }} --count {{ number_cnt }}",
-              cwd="/usr/share/clearwater/ellis/src/metaswitch/ellis/tools/", requires=config)
+              cwd="/usr/share/clearwater/ellis/src/metaswitch/ellis/tools/", requires=[config])
 end
 
 implementation ellisDNS for Ellis:
