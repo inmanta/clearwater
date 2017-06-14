@@ -77,7 +77,7 @@ end
 
 implementation clearwaterService for ClearwaterService:
     self._repo = apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="http://repo.cw-ngv.com/stable")
-    
+
     std::DefaultDirectory(host=host, path="/etc/clearwater")
     f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config",
                           content=std::template("clearwater/local_config.template"))

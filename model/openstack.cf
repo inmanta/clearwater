@@ -107,7 +107,7 @@ implementation mInmantaAgent for openstack::Host:
     env_id = std::environment()
     env_server = std::environment_server()
     port = std::server_port()
-    branch = std::get_env("INMANTA_RELEASE", "stable")
+    release = std::get_env("INMANTA_RELEASE", "stable")
 
     self.user_data = std::template("clearwater/user_data.j2")
 end

@@ -1,36 +1,21 @@
 #!/bin/bash
 
 hostname {{ name }}
-setenforce 0
 
-{% if branch == "master" %}
-cat > /etc/yum.repos.d/inmanta_oss_dev.repo <<EOF
-[inmanta-oss-dev]
-name=Inmanta OSS Dev snapshots
-baseurl=https://pkg.inmanta.com/inmanta-oss-dev/el7/
-gpgcheck=1
-gpgkey=https://pkg.inmanta.com/inmanta-oss-dev/inmanta-oss-dev-public-key
-repo_gpgcheck=1
-enabled=1
-enabled_metadata=1
-EOF
-{% else %}
-cat > /etc/yum.repos.d/inmanta.repo <<EOF
-[bartvanbrabant-inmanta]
-name=Copr repo for inmanta owned by bartvanbrabant
-baseurl=https://copr-be.cloud.fedoraproject.org/results/bartvanbrabant/inmanta/fedora-\$releasever-\$basearch/
-type=rpm-md
-skip_if_unavailable=True
-gpgcheck=1
-gpgkey=https://copr-be.cloud.fedoraproject.org/results/bartvanbrabant/inmanta/pubkey.gpg
-repo_gpgcheck=0
-enabled=1
-enabled_metadata=1
-EOF
+apt-get update
+apt-get install -y python3 python3-pip git python-virtualenv
+
+virtualenv -p python3 /opt/inmanta
+/opt/inmanta/bin/pip3 install -U pip
+/opt/inmanta/bin/pip3 install -U setuptools
+# Install inmanta release {{release}}
+{% if release == "master" -%}
+/opt/inmanta/bin/pip3 install git+https://github.com/inmanta/inmanta#egg=inmanta
+{% else -%}
+/opt/inmanta/bin/pip3 install inmanta
 {% endif %}
 
-dnf install -y python3-devel gcc git python3-inmanta-agent
-
+mkdir -p /etc/inmanta
 cat > /etc/inmanta/agent.cfg <<EOF
 [config]
 heartbeat-interval = 60
@@ -45,5 +30,20 @@ port={{port}}
 host={{env_server}}
 EOF
 
-systemctl start inmanta-agent
-systemctl enable inmanta-agent
+cat > /etc/init/inmanta.conf <<EOF
+# inmanta - Inmanta cfg mgmt agent
+#
+# Inmanta agent
+description "Inmanta"
+
+start on runlevel [2345]
+stop on runlevel [!2345]
+
+expect fork
+respawn
+
+exec /opt/inmanta/bin/inmanta -c /etc/inmanta/agent.cfg -vvv agent
+EOF
+
+initctl reload-configuration
+start inmanta
