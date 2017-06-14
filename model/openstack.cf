@@ -103,11 +103,13 @@ implementation mDefaults for ManagedClearWater:
 end
 
 implementation mInmantaAgent for openstack::Host:
+    env_name = std::environment_name()
     env_id = std::environment()
-    port = std::server_port()
     env_server = std::environment_server()
+    port = std::server_port()
+    branch = std::get_env("INMANTA_RELEASE", "stable")
 
-    self.user_data = std::template("clearwater/user_data.tmpl")
+    self.user_data = std::template("clearwater/user_data.j2")
 end
 
 implement ManagedClearWater using mDefaults
