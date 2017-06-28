@@ -147,7 +147,7 @@ implementation ellis for Ellis:
     config = exec::Run(host=host, command="/usr/bin/cw_config_setup", requires=[f, ccs])
 
     # provision telephone numbers (run this everytime, it is idempotent
-    exec::Run(host=host, command="/usr/share/clearwater/ellis/env/bin/python create_numbers.py --start {{ base_number }} --count {{ number_cnt }}",
+    exec::Run(host=host, command="/usr/share/clearwater/ellis/env/bin/python create_numbers.py --start {{ clearwater.base_number }} --count {{ clearwater.number_cnt }}",
               cwd="/usr/share/clearwater/ellis/src/metaswitch/ellis/tools/", requires=[config])
 end
 
@@ -187,7 +187,7 @@ implementation bonoDNS for Bono:
     dns::Record(zone=clearwater.private_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{host.name}}.")
 
     dns::A(zone=clearwater.public_zone, resource="@", ipaddress=host.public_ip.v4)
-    public_name = std::replace(host.name, private_domain, public_domain)
+    public_name = std::replace(host.name, clearwater.private_domain, clearwater.public_domain)
     dns::A(zone=clearwater.public_zone, resource="{{ public_name }}.", ipaddress=host.public_ip.v4)
 
     dns::Record(zone=clearwater.public_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{public_name}}.")
