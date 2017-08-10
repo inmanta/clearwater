@@ -21,6 +21,8 @@ cat > /etc/inmanta/agent.cfg <<EOF
 heartbeat-interval = 60
 fact-expire = 60
 state-dir=/var/lib/inmanta
+agent-splay=30
+agent-interval=300
 
 environment={{ env_id }}
 agent-names=\$node-name

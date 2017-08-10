@@ -1,4 +1,8 @@
 local_ip={{host.ip}}
-public_ip={{host.ip}}
+{% if host.public_ip -%}
+public_ip={{host.public_ip.v4}}
+public_hostname={{host.name | std.replace(clearwater.private_domain, clearwater.public_domain) }}
+{% else %}
 public_hostname={{host.name}}
+{% endif %}
 etcd_cluster="{{ clearwater.hosts | map(attribute="ip") | sort | join(",") }}"

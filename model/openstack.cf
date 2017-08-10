@@ -9,8 +9,8 @@ entity ManagedClearWater extends ClearWater:
     number bono_instances
     number sprout_instances
     number homer_instances
-    number homestead_instances
-    number ralf_instances
+    number vellum_instances
+    number dime_instances
 
     bool memento
 
@@ -29,11 +29,14 @@ openstack::SecurityGroup base_group [1] -- [0:] ManagedClearWater mcw
 openstack::SecurityGroup sg_ellis   [1] -- [0:] ManagedClearWater mcw_ellis
 openstack::SecurityGroup sg_bono    [1] -- [0:] ManagedClearWater mcw_bono
 openstack::SecurityGroup sg_sprout  [1] -- [0:] ManagedClearWater mcw_sprout
-openstack::SecurityGroup sg_homestead [1] -- [0:] ManagedClearWater mcw_homestead
+openstack::SecurityGroup sg_dime    [1] -- [0:] ManagedClearWater mcw_homestead
 openstack::SecurityGroup sg_homer   [1] -- [0:] ManagedClearWater mcw_homer
-openstack::SecurityGroup sg_ralf    [1] -- [0:] ManagedClearWater mcw_ralf
+openstack::SecurityGroup sg_vellum  [1] -- [0:] ManagedClearWater mcw_ralf
 
 entity ClearwaterVNF:
+    """
+        A baseclass for a clearwater VNF. This VNF defines the VNFC
+    """
     string name
 end
 
@@ -58,26 +61,26 @@ entity Ellis extends ClearwaterVNF:
 end
 implement Ellis using mEllis
 
-entity Homestead extends ClearwaterVNF:
-
-end
-implement Homestead using mHomestead
-
 entity Bono extends ClearwaterVNF:
 
 end
 implement Bono using mBono
-
-entity Ralf extends ClearwaterVNF:
-
-end
-implement Ralf using mRalf
 
 entity Sprout extends ClearwaterVNF:
     bool memento=true
 end
 implement Sprout using mSprout
 implement Sprout using mSproutMemento when memento
+
+entity Dime extends ClearwaterVNF:
+
+end
+implement Dime using mDime
+
+entity Vellum extends ClearwaterVNF:
+
+end
+implement Vellum using mVellum
 
 implementation mDefaults for ManagedClearWater:
     self.vm_os = ubuntu::ubuntu1404
@@ -86,8 +89,7 @@ implementation mDefaults for ManagedClearWater:
     openstack::IPrule(group=sg_base, direction="egress", ip_protocol="all", remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="icmp", remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="tcp", port=22, remote_prefix="0.0.0.0/0")
-    openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="udp", port_min=161, port_max=162,
-                      remote_prefix="0.0.0.0/0")
+    openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="udp", port_min=161, port_max=162, remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="tcp", port=2380, remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="tcp", port=4000, remote_prefix="0.0.0.0/0")
 
@@ -96,9 +98,9 @@ implementation mDefaults for ManagedClearWater:
     # Create VNFs
     Homer(clearwater=self)
     Ellis(clearwater=self)
-    Homestead(clearwater=self)
+    Dime(clearwater=self)
     Bono(clearwater=self)
-    Ralf(clearwater=self)
+    Vellum(clearwater=self)
     Sprout(clearwater=self)
 end
 
@@ -187,14 +189,11 @@ implementation mSprout for Sprout:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=5054, remote_group=sg)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=5054, remote_group=clearwater.sg_bono)
 
-    # Memcache
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11211, remote_group=sg)
-
     # Chronos
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7253, remote_group=sg)
 
     # Homestead registration
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9888, remote_group=clearwater.sg_homestead)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9888, remote_group=clearwater.sg_dime)
 
     for i in std::sequence(clearwater.sprout_instances, 1):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="sprout-{{i}}.{{clearwater.private_domain}}",
@@ -207,37 +206,8 @@ implementation mSprout for Sprout:
 end
 
 implementation mSproutMemento for Sprout:
-    # Enable cassandra
-    openstack::GroupRule(group=clearwater.sg_sprout, direction="ingress", ip_protocol="tcp", port=7000, remote_group=clearwater.sg_sprout)
-    openstack::GroupRule(group=clearwater.sg_sprout, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_sprout)
-
     # HTTPS
     openstack::IPrule(group=clearwater.sg_sprout, direction="ingress", ip_protocol="tcp", port=443, remote_prefix="0.0.0.0/0")
-end
-
-implementation mHomestead for Homestead:
-    self.name = "homestead"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_homestead", description="Clearwater homestead")
-    clearwater.sg_homestead = sg
-
-    # REST interface
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8888, remote_group=clearwater.sg_sprout)
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8888, remote_group=clearwater.sg_ellis)
-
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8889, remote_group=clearwater.sg_ellis)
-
-    # Cassandra to other homestead nodes
-    openstack::GroupRule(group=clearwater.sg_homestead, direction="ingress", ip_protocol="tcp", port=7000,
-                         remote_group=clearwater.sg_homestead)
-
-    for i in std::sequence(clearwater.homestead_instances, 1):
-        host = Host(provider=clearwater.provider, project=clearwater.project, name="homestead-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
-                    subnet=clearwater.mgmt_network, vnf=self)
-        host.vm.security_groups = [clearwater.base_group, sg]
-
-        clearwater::Homestead(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
-    end
 end
 
 implementation mHomer for Homer:
@@ -249,9 +219,6 @@ implementation mHomer for Homer:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7888, remote_group=clearwater.sg_sprout)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7888, remote_group=clearwater.sg_ellis)
 
-    # Cassandra to other homer nodes
-    openstack::GroupRule(group=clearwater.sg_homer, direction="ingress", ip_protocol="tcp", port=7000, remote_group=clearwater.sg_homer)
-
     for i in std::sequence(clearwater.homer_instances, 1):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="homer-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
@@ -262,24 +229,56 @@ implementation mHomer for Homer:
     end
 end
 
-implementation mRalf for Ralf:
-    self.name = "ralf"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_ralf", description="Clearwater ralf")
-    clearwater.sg_ralf = sg
+implementation mDime for Dime:
+    self.name = "dime"
+    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_dime", description="Clearwater dime")
+    clearwater.sg_dime = sg
 
     # REST interface
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8888, remote_group=clearwater.sg_sprout)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8888, remote_group=clearwater.sg_ellis)
+
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=8889, remote_group=clearwater.sg_ellis)
+
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=10888, remote_group=clearwater.sg_sprout)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=10888, remote_group=clearwater.sg_bono)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=10888, remote_group=clearwater.sg_vellum)
 
-    # Chronos and memcached
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7253, remote_group=clearwater.sg_ralf)
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11211, remote_group=clearwater.sg_ralf)
 
-    for i in std::sequence(clearwater.ralf_instances, 1):
-        host = Host(provider=clearwater.provider, project=clearwater.project, name="ralf-{{i}}.{{clearwater.private_domain}}", image=clearwater.image_id,
+    for i in std::sequence(clearwater.dime_instances, 1):
+        host = Host(provider=clearwater.provider, project=clearwater.project, name="dime-{{i}}.{{clearwater.private_domain}}",
+                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    subnet=clearwater.mgmt_network, vnf=self)
+        host.vm.security_groups = [clearwater.base_group, sg]
+
+        clearwater::Dime(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+    end
+end
+
+implementation mVellum for Vellum:
+    self.name = "vellum"
+    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_vellum", description="Clearwater vellum")
+    clearwater.sg_vellum = sg
+
+    # Chronos, memcached and Cassandra
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7253, remote_group=clearwater.sg_vellum)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11211, remote_group=clearwater.sg_vellum)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7000, remote_group=clearwater.sg_vellum)
+
+    # Chronos and Astaire
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7253, remote_group=clearwater.sg_vellum)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11311, remote_group=clearwater.sg_vellum)
+
+    # Cassandra clients
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_homer)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_dime)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_sprout)        
+
+    for i in std::sequence(clearwater.vellum_instances, 1):
+        host = Host(provider=clearwater.provider, project=clearwater.project, name="vellum-{{i}}.{{clearwater.private_domain}}", image=clearwater.image_id,
                     flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404, subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Ralf(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Vellum(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
     end
 end

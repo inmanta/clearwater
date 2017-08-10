@@ -23,60 +23,129 @@ entity Host extends ip::Host:
 end
 implement Host using std::hostDefaults, privateIP
 
-Host host_private [0:1] -- [1] ip::IP private_ip
-Host host_public  [0:1] -- [0:1] ip::IP public_ip
+Host.private_ip [1] -- ip::IP
+Host.public_ip [0:1] -- ip::IP
 
 implementation privateIP for Host:
-    self.private_ip = ip::IP(v4 = self.ip)
+    self.private_ip = ip::IP(v4=self.ip)
 end
 
-Homer homer         [0:] -- [1] ClearWater clearwater
-Ellis ellis         [0:] -- [1] ClearWater clearwater
-Homestead homestead [0:] -- [1] ClearWater clearwater
-Bono bono           [0:] -- [1] ClearWater clearwater
-Ralf ralf           [0:] -- [1] ClearWater clearwater
-Sprout sprout       [0:] -- [1] ClearWater clearwater
-Host hosts          [0:] -- [1] ClearWater clearwater
+# Required services
+Sprout.clearwater [1] -- ClearWater.sprout [1:]
+Dime.clearwater   [1] -- ClearWater.dime [1:]
+Vellum.clearwater [1] -- ClearWater.vellum [3:]
 
-dns::Zone public_zone [0:1] -- [0:1] ClearWater clearwater_public
-dns::Zone private_zone [0:1] -- [0:1] ClearWater clearwater_private
+# Optional services
+Homer.clearwater  [1] -- ClearWater.homer [0:]
+Ellis.clearwater  [1] -- ClearWater.ellis [0:1]
+Bono.clearwater   [1] -- ClearWater.bono [0:]
+
+# All hosts running clearwater services
+Host.clearwater   [1] -- ClearWater.hosts [0:]
+
+ClearWater.public_zone [0:1] -- dns::Zone
+ClearWater.private_zone [0:1] -- dns::Zone
 
 entity ClearwaterService extends ip::services::Server:
     string instance_name
 end
-
-apt::Repository _repo [1] -- [0:] ClearwaterService cws
 
 # Use this package as synchronisation point
 std::Package cw_mgmt [1] -- [0:] ClearwaterService cws
 std::File local_cfg [1] -- [0:] ClearwaterService cws
 
 entity Homer extends ClearwaterService:
+    """
+        XDMS
 
+        Homer is a standard XDMS used to store MMTEL service settings documents for each user of the system. Documents are created, 
+        read, updated and deleted using a standard XCAP interface. As with Homestead, the Homer nodes use Vellum as the data store
+        for all long lived data.
+    """
 end
 
 entity Ellis extends ClearwaterService:
-
-end
-
-entity Homestead extends ClearwaterService:
-
+    """
+        Ellis is a sample provisioning portal providing self sign-up, password management, line management and control of MMTEL
+        service settings. It is not intended to be a part of production Clearwater deployments (it is not easy to horizontally 
+        scale because of the MySQL underpinnings for one thing) but to make the system easy to use out of the box.
+    """
 end
 
 entity Bono extends ClearwaterService:
+    """
+        Edge Proxy
+        
+        The Bono nodes form a horizontally scalable SIP edge proxy providing both a SIP IMS Gm 
+        compliant interface and a WebRTC interface to clients. Client connections are load balanced across the nodes.
+        The Bono node provides the anchor point for the client’s connection to the Clearwater system, including 
+        support for various NAT traversal mechanisms. A client is therefore anchored to a particular Bono node for 
+        the duration of its registration, but can move to another Bono node if the connection or client fails.
 
-end
+        Clients can connect to Bono using SIP/UDP or SIP/TCP. Bono supports any WebRTC client that performs call 
+        setup signaling using SIP over WebSocket.
 
-entity Ralf extends ClearwaterService:
-
+        Alternatively, Clearwater can be deployed with a third party P-CSCF or Session Border Controller implementing P-CSCF.
+        In this case Bono nodes are not required.
+    """
 end
 
 entity Sprout extends ClearwaterService:
+    """
+        SIP Router
+
+        The Sprout nodes act as a horizontally scalable, combined SIP registrar and authoritative routing proxy, and handle 
+        client authentication and the ISC interface to application servers. The Sprout nodes also contain the in-built MMTEL
+        application server. SIP transactions are load balanced across the Sprout cluster, so there is no long-lived association 
+        between a client and a particular Sprout node. Sprout does not store any long-lived data itself and instead uses - 
+        web services interfaces to Homestead and Homer to retrieve HSS configuration such as authentication data/user profiles 
+        and MMTEL service settings - APIs to Vellum for storing subscriber registration data and for running timers.
+
+        Sprout is where the bulk of the I-CSCF and S-CSCF function resides, with the remainder provided by Dime 
+        (and backed by the long-lived data stores on Vellum).
+    """
     bool memento=true
 end
 
+entity Dime extends ClearwaterService:
+    """
+        Dime nodes run Clearwater’s Homestead and Ralf components.
+
+        - Homestead (HSS Cache) provides a web services interface to Sprout for retrieving authentication credentials and user 
+          profile information. It can either master the data (in which case it exposes a web services provisioning interface) 
+          or can pull the data from an IMS compliant HSS over the Cx interface. The Homestead nodes themselves are stateless - 
+          the mastered / cached subscriber data is all stored on Vellum (via Cassandra’s Thrift interface).
+
+          In the IMS architecture, the HSS mirror function is considered to be part of the I-CSCF and S-CSCF components, so in 
+          Clearwater I-CSCF and S-CSCF function is implemented with a combination of Sprout and Dime clusters.
+
+        - Ralf (CTF) provides an HTTP API that both Bono and Sprout can use to report billable events that should be passed to the
+          CDF (Charging Data Function) over the Rf billing interface. Ralf is stateless, using Vellum to maintain the long lived session 
+          state and run the timers necessary to enable it to conform to the Rf protocol.
+    """    
+end
+
+entity Vellum extends ClearwaterService:
+    """
+        State store
+        
+        As described above, Vellum is used to maintain all long-lived state in the dedployment. It does this by running a number 
+        of cloud optimized, distributed storage clusters. 
+        
+        - Cassandra. Cassandra is used by Homestead to store authentication credentials and profile information, and is used by Homer
+          to store MMTEL service settings. Vellum exposes Cassandra’s Thrift API. 
+        - etcd. etcd is used by Vellum itself to share clustering information between Vellum nodes and by other nodes in the deployment
+          for shared configuration. - Chronos. Chronos is a distributed, redundant, reliable timer service developed by Clearwater. 
+          It is used by Sprout and Ralf nodes to enable timers to be run (e.g. for SIP Registration expiry) without pinning operations 
+          to a specific node (one node can set the timer and another act on it when it pops). Chronos is accessed via an HTTP API. 
+        - Memcached / Astaire. Vellum also runs a Memcached cluster fronted by Astaire. Astaire is a service developed by Clearwater 
+          that enabled more rapid scale up and scale down of memcached clusters. This cluster is used by Sprout and Ralf for storing 
+          registration and session state.    
+    """
+end
+
 implementation clearwaterService for ClearwaterService:
-    self._repo = apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="http://repo.cw-ngv.com/stable")
+    apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="https://packages.inmanta.com/ngw/20170807")
 
     std::DefaultDirectory(host=host, path="/etc/clearwater")
     f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config",
@@ -108,7 +177,7 @@ end
 
 ## Homer
 implementation homer for Homer:
-    std::Package(host=host, name="homer-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="homer", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 
     logging::LogDir(host=host, name="homer", path="/var/log/homer", matches="homer_(?P<date>\d+)T(?P<time>\d+)Z.txt",
                     priority=["date", "time"], type="clearwater")
@@ -116,6 +185,7 @@ end
 
 implementation homerDNS for Homer:
     dns::A(zone=clearwater.private_zone, resource="homer", ipaddress=host.private_ip.v4)
+    dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
 end
 
 implement Homer using homer, clearwaterService
@@ -123,7 +193,7 @@ implement Homer using homerDNS when clearwater.create_dns_records
 
 ## Ellis
 implementation ellis for Ellis:
-    p = std::Package(host=host, name="ellis-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    p = std::Package(host=host, name="ellis", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 
     logging::LogDir(host=host, name="ellis", path="/var/log/ellis", matches="ellis_(?P<date>\d+)T(?P<time>\d+)Z.txt",
                     priority=["date", "time"], type="clearwater")
@@ -152,6 +222,7 @@ implementation ellis for Ellis:
 end
 
 implementation ellisDNS for Ellis:
+    dns::A(zone=clearwater.private_zone, resource="ellis-1", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="ellis", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.public_zone, resource="ellis", ipaddress=host.public_ip.v4)
 end
@@ -159,23 +230,10 @@ end
 implement Ellis using ellis, clearwaterService
 implement Ellis using ellisDNS when clearwater.create_dns_records
 
-## Homestead
-implementation homestead for Homestead:
-    std::Package(host=host, name="homestead-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
-    std::Package(host=host, name="clearwater-prov-tools", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
-end
-
-implementation homesteadDNS for Homestead:
-    dns::A(zone=clearwater.private_zone, resource="hs", ipaddress=host.private_ip.v4)
-end
-
-implement Homestead using homestead, clearwaterService
-implement Homestead using homesteadDNS when clearwater.create_dns_records
-
 ## Bono
 implementation bono for Bono:
-    std::Package(host=host, name="bono-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
-    std::Package(host=host, name="clearwater-snmp-handler-bono", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="bono", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmpd", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
     std::Package(host=host, name="restund", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 
     logging::LogDir(host=host, name="bono", path="/var/log/bono", matches="bono_(?P<date>\d+)T(?P<time>\d+)Z.txt",
@@ -183,6 +241,7 @@ implementation bono for Bono:
 end
 
 implementation bonoDNS for Bono:
+    dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="bono", ipaddress=host.private_ip.v4)
     dns::Record(zone=clearwater.private_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{host.name}}.")
 
@@ -197,33 +256,22 @@ end
 implement Bono using bono, clearwaterService
 implement Bono using bonoDNS when clearwater.create_dns_records
 
-## Ralf
-implementation ralf for Ralf:
-    std::Package(host=host, name="ralf-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
-    logging::LogDir(host=host, name="ralf", path="/var/log/ralf", matches="ralf_(?P<date>\d+)T(?P<time>\d+)Z.txt",
-                    priority=["date", "time"], type="clearwater")
-end
-
-implementation ralfDNS for Ralf:
-    dns::A(zone=clearwater.private_zone, resource="ralf", ipaddress=host.private_ip.v4)
-end
-
-implement Ralf using ralf, clearwaterService, chronos
-implement Ralf using ralfDNS when clearwater.create_dns_records
-
 ## Sprout
 implementation sprout for Sprout:
-    std::Package(host=host, name="sprout-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="sprout", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmpd", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 
     logging::LogDir(host=host, name="sprout", path="/var/log/sprout", matches="sprout_(?P<date>\d+)T(?P<time>\d+)Z.txt",
                     priority=["date", "time"], type="clearwater")
 end
 
 implementation sproutMemento for Sprout:
-    std::Package(host=host, name="memento-node", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="memento-as", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="memento-nginx", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 end
 
 implementation sproutDNS for Sprout:
+    dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="sprout", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="scscf.sprout", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="icscf.sprout", ipaddress=host.private_ip.v4)
@@ -236,6 +284,41 @@ end
 implement Sprout using sproutMemento when memento
 implement Sprout using sprout, clearwaterService, chronos
 implement Sprout using sproutDNS when clearwater.create_dns_records
+
+## Dime
+implementation dime for Dime:
+    std::Package(host=host, name="dime", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-prov-tools", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmpd", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+end
+
+implementation dimeDNS for Dime:
+    dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
+    dns::A(zone=clearwater.private_zone, resource="hs", ipaddress=host.private_ip.v4)
+    dns::A(zone=clearwater.private_zone, resource="ralf", ipaddress=host.private_ip.v4)
+end
+
+implement Dime using dime, clearwaterService
+implement Dime using dimeDNS when clearwater.create_dns_records
+
+## Vellum
+implementation vellum for Vellum:
+    std::Package(host=host, name="vellum", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmpd", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+    std::Package(host=host, name="clearwater-snmp-handler-astaire", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
+end
+
+implementation vellumMemento for Vellum:
+    std::Package(host=host, name="memento-cassandra", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)    
+end
+
+implementation vellumDNS for Vellum:
+    dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
+    dns::A(zone=clearwater.private_zone, resource="vellum", ipaddress=host.private_ip.v4)
+end
+
+implement Vellum using vellum, vellumMemento, clearwaterService
+implement Vellum using vellumDNS when clearwater.create_dns_records
 
 ## Managed DNS
 # By default each hosts adds its hostname to the private zone
@@ -257,6 +340,3 @@ implementation hostRecords for Host:
     dns::A(zone=clearwater.private_zone, resource="{{name}}.", ipaddress=ip)
 end
 implement Host using hostRecords when clearwater.create_dns_records
-
-
-
