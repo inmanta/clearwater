@@ -147,8 +147,8 @@ end
 implementation clearwaterService for ClearwaterService:
     apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="https://packages.inmanta.com/ngw/20170807")
 
-    std::DefaultDirectory(host=host, path="/etc/clearwater")
-    f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config",
+    cwdir = std::DefaultDirectory(host=host, path="/etc/clearwater")
+    f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config", requires=cwdir,
                           content=std::template("clearwater/local_config.template"))
     self.local_cfg = f_c
 
