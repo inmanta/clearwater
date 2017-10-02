@@ -41,7 +41,6 @@ description "Inmanta"
 start on runlevel [2345]
 stop on runlevel [!2345]
 
-expect fork
 respawn
 
 exec /opt/inmanta/bin/inmanta -c /etc/inmanta/agent.cfg -vvv agent
