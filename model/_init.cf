@@ -145,7 +145,7 @@ entity Vellum extends ClearwaterService:
 end
 
 implementation clearwaterService for ClearwaterService:
-    apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="https://packages.inmanta.com/ngw/20170807")
+    apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="http://repo.cw-ngv.com/archive/repo127/")
 
     cwdir = std::DefaultDirectory(host=host, path="/etc/clearwater")
     f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config", requires=cwdir,
