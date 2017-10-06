@@ -11,6 +11,7 @@ mkdir /root/deps
 curl http://mirror.demo.inmanta.com/inmanta/sources/modules.tar.gz | tar xvz --strip-components=1 -C /root/deps
 curl http://mirror.demo.inmanta.com/inmanta/sources/deps-2017.2.3.tar.gz | tar xvz --strip-components=1 -C /root/deps
 rm -f /root/deps/docker*
+/opt/inmanta/bin/pip3 install -U --no-index --find-links /root/deps/ wheel setuptools virtualenv pip
 /opt/inmanta/bin/pip3 install -U /root/deps/*.tar.gz
 /opt/inmanta/bin/pip3 install http://mirror.demo.inmanta.com/inmanta/sources/inmanta-2017.2.3.tar.gz
 
