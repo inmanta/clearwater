@@ -4,17 +4,24 @@ hostname {{ name }}
 echo {{ name }} > /etc/hostname
 
 apt-get update
-apt-get install -y python3 python3-pip git python-virtualenv
+apt-get install -y python3 python3-pip git python-virtualenv libffi-dev
 
 virtualenv -p python3 /opt/inmanta
-/opt/inmanta/bin/pip3 install -U pip
-/opt/inmanta/bin/pip3 install -U setuptools
-# Install inmanta release {{release}}
-{% if release == "master" -%}
-/opt/inmanta/bin/pip3 install git+https://github.com/inmanta/inmanta#egg=inmanta
-{% else -%}
-/opt/inmanta/bin/pip3 install inmanta
-{% endif %}
+mkdir /root/deps
+curl http://mirror.demo.inmanta.com/inmanta/sources/modules.tar.gz | tar xvz --strip-components=1 -C /root/deps
+curl http://mirror.demo.inmanta.com/inmanta/sources/deps-2017.2.3.tar.gz | tar xvz --strip-components=1 -C /root/deps
+rm -f /root/deps/docker*
+/opt/inmanta/bin/pip3 install -U /root/deps/*.tar.gz
+/opt/inmanta/bin/pip3 install http://mirror.demo.inmanta.com/inmanta/sources/inmanta-2017.2.3.tar.gz
+
+# /opt/inmanta/bin/pip3 install -U pip
+# /opt/inmanta/bin/pip3 install -U setuptools
+# # Install inmanta release {{release}}
+# {% if release == "master" -%}
+# /opt/inmanta/bin/pip3 install git+https://github.com/inmanta/inmanta#egg=inmanta
+# {% else -%}
+# /opt/inmanta/bin/pip3 install inmanta
+# {% endif %}
 
 mkdir -p /etc/inmanta
 cat > /etc/inmanta/agent.cfg <<EOF
