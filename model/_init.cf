@@ -7,6 +7,9 @@ import exec
 import logging
 
 entity ClearWater:
+    """
+        The clearwater service.
+    """
     string public_domain
     string private_domain
     bool create_dns_records=false
@@ -19,7 +22,6 @@ end
 implement ClearWater using std::none
 
 entity Host extends ip::Host:
-
 end
 implement Host using std::hostDefaults, privateIP
 
@@ -51,14 +53,14 @@ entity ClearwaterService extends ip::services::Server:
 end
 
 # Use this package as synchronisation point
-std::Package cw_mgmt [1] -- [0:] ClearwaterService cws
-std::File local_cfg [1] -- [0:] ClearwaterService cws
+ClearwaterService.cw_mgmt [1] -- std::Package
+ClearwaterService.local_cfg [1] -- std::File
 
 entity Homer extends ClearwaterService:
     """
         XDMS
 
-        Homer is a standard XDMS used to store MMTEL service settings documents for each user of the system. Documents are created, 
+        Homer is a standard XDMS used to store MMTEL service settings documents for each user of the system. Documents are created,
         read, updated and deleted using a standard XCAP interface. As with Homestead, the Homer nodes use Vellum as the data store
         for all long lived data.
     """
@@ -67,7 +69,7 @@ end
 entity Ellis extends ClearwaterService:
     """
         Ellis is a sample provisioning portal providing self sign-up, password management, line management and control of MMTEL
-        service settings. It is not intended to be a part of production Clearwater deployments (it is not easy to horizontally 
+        service settings. It is not intended to be a part of production Clearwater deployments (it is not easy to horizontally
         scale because of the MySQL underpinnings for one thing) but to make the system easy to use out of the box.
     """
 end
@@ -75,14 +77,14 @@ end
 entity Bono extends ClearwaterService:
     """
         Edge Proxy
-        
-        The Bono nodes form a horizontally scalable SIP edge proxy providing both a SIP IMS Gm 
+
+        The Bono nodes form a horizontally scalable SIP edge proxy providing both a SIP IMS Gm
         compliant interface and a WebRTC interface to clients. Client connections are load balanced across the nodes.
-        The Bono node provides the anchor point for the client’s connection to the Clearwater system, including 
-        support for various NAT traversal mechanisms. A client is therefore anchored to a particular Bono node for 
+        The Bono node provides the anchor point for the client’s connection to the Clearwater system, including
+        support for various NAT traversal mechanisms. A client is therefore anchored to a particular Bono node for
         the duration of its registration, but can move to another Bono node if the connection or client fails.
 
-        Clients can connect to Bono using SIP/UDP or SIP/TCP. Bono supports any WebRTC client that performs call 
+        Clients can connect to Bono using SIP/UDP or SIP/TCP. Bono supports any WebRTC client that performs call
         setup signaling using SIP over WebSocket.
 
         Alternatively, Clearwater can be deployed with a third party P-CSCF or Session Border Controller implementing P-CSCF.
@@ -94,14 +96,14 @@ entity Sprout extends ClearwaterService:
     """
         SIP Router
 
-        The Sprout nodes act as a horizontally scalable, combined SIP registrar and authoritative routing proxy, and handle 
+        The Sprout nodes act as a horizontally scalable, combined SIP registrar and authoritative routing proxy, and handle
         client authentication and the ISC interface to application servers. The Sprout nodes also contain the in-built MMTEL
-        application server. SIP transactions are load balanced across the Sprout cluster, so there is no long-lived association 
-        between a client and a particular Sprout node. Sprout does not store any long-lived data itself and instead uses - 
-        web services interfaces to Homestead and Homer to retrieve HSS configuration such as authentication data/user profiles 
+        application server. SIP transactions are load balanced across the Sprout cluster, so there is no long-lived association
+        between a client and a particular Sprout node. Sprout does not store any long-lived data itself and instead uses -
+        web services interfaces to Homestead and Homer to retrieve HSS configuration such as authentication data/user profiles
         and MMTEL service settings - APIs to Vellum for storing subscriber registration data and for running timers.
 
-        Sprout is where the bulk of the I-CSCF and S-CSCF function resides, with the remainder provided by Dime 
+        Sprout is where the bulk of the I-CSCF and S-CSCF function resides, with the remainder provided by Dime
         (and backed by the long-lived data stores on Vellum).
     """
     bool memento=true
@@ -111,36 +113,36 @@ entity Dime extends ClearwaterService:
     """
         Dime nodes run Clearwater’s Homestead and Ralf components.
 
-        - Homestead (HSS Cache) provides a web services interface to Sprout for retrieving authentication credentials and user 
-          profile information. It can either master the data (in which case it exposes a web services provisioning interface) 
-          or can pull the data from an IMS compliant HSS over the Cx interface. The Homestead nodes themselves are stateless - 
+        - Homestead (HSS Cache) provides a web services interface to Sprout for retrieving authentication credentials and user
+          profile information. It can either master the data (in which case it exposes a web services provisioning interface)
+          or can pull the data from an IMS compliant HSS over the Cx interface. The Homestead nodes themselves are stateless -
           the mastered / cached subscriber data is all stored on Vellum (via Cassandra’s Thrift interface).
 
-          In the IMS architecture, the HSS mirror function is considered to be part of the I-CSCF and S-CSCF components, so in 
+          In the IMS architecture, the HSS mirror function is considered to be part of the I-CSCF and S-CSCF components, so in
           Clearwater I-CSCF and S-CSCF function is implemented with a combination of Sprout and Dime clusters.
 
         - Ralf (CTF) provides an HTTP API that both Bono and Sprout can use to report billable events that should be passed to the
-          CDF (Charging Data Function) over the Rf billing interface. Ralf is stateless, using Vellum to maintain the long lived session 
+          CDF (Charging Data Function) over the Rf billing interface. Ralf is stateless, using Vellum to maintain the long lived session
           state and run the timers necessary to enable it to conform to the Rf protocol.
-    """    
+    """
 end
 
 entity Vellum extends ClearwaterService:
     """
         State store
-        
-        As described above, Vellum is used to maintain all long-lived state in the dedployment. It does this by running a number 
-        of cloud optimized, distributed storage clusters. 
-        
+
+        As described above, Vellum is used to maintain all long-lived state in the dedployment. It does this by running a number
+        of cloud optimized, distributed storage clusters.
+
         - Cassandra. Cassandra is used by Homestead to store authentication credentials and profile information, and is used by Homer
-          to store MMTEL service settings. Vellum exposes Cassandra’s Thrift API. 
+          to store MMTEL service settings. Vellum exposes Cassandra’s Thrift API.
         - etcd. etcd is used by Vellum itself to share clustering information between Vellum nodes and by other nodes in the deployment
-          for shared configuration. - Chronos. Chronos is a distributed, redundant, reliable timer service developed by Clearwater. 
-          It is used by Sprout and Ralf nodes to enable timers to be run (e.g. for SIP Registration expiry) without pinning operations 
-          to a specific node (one node can set the timer and another act on it when it pops). Chronos is accessed via an HTTP API. 
-        - Memcached / Astaire. Vellum also runs a Memcached cluster fronted by Astaire. Astaire is a service developed by Clearwater 
-          that enabled more rapid scale up and scale down of memcached clusters. This cluster is used by Sprout and Ralf for storing 
-          registration and session state.    
+          for shared configuration. - Chronos. Chronos is a distributed, redundant, reliable timer service developed by Clearwater.
+          It is used by Sprout and Ralf nodes to enable timers to be run (e.g. for SIP Registration expiry) without pinning operations
+          to a specific node (one node can set the timer and another act on it when it pops). Chronos is accessed via an HTTP API.
+        - Memcached / Astaire. Vellum also runs a Memcached cluster fronted by Astaire. Astaire is a service developed by Clearwater
+          that enabled more rapid scale up and scale down of memcached clusters. This cluster is used by Sprout and Ralf for storing
+          registration and session state.
     """
 end
 
@@ -152,7 +154,7 @@ implementation clearwaterService for ClearwaterService:
                           content=std::template("clearwater/local_config.template"))
     self.local_cfg = f_c
 
-    # This package already starts stuff so make sure that the config fiel is already there.
+    # This package already starts stuff so make sure that the config file is already there.
     p_mgmt = std::Package(host=host, name="clearwater-management", state="installed", requires=f_c)
     self.cw_mgmt = p_mgmt
 
@@ -163,11 +165,14 @@ implementation clearwaterService for ClearwaterService:
                    requires=p_mgmt)
 
     # Only update these when clearwater packages have been installed
-    f_1 = std::ConfigFile(host=host, path="/etc/dnsmasq.d/resolv.conf", content=std::template("clearwater/dnsmasq.template"), 
+    f_1 = std::ConfigFile(host=host, path="/etc/dnsmasq.d/resolv.conf", content=std::template("clearwater/dnsmasq.template"),
                           reload=true, requires=p_mgmt)
     f_2 = std::ConfigFile(host=host, path="/etc/default/dnsmasq", content=std::template("clearwater/dnsmasq.default"),
                           reload=true, requires=p_mgmt)
     std::Service(host=host, name="dnsmasq", state="running", requires=[f_1, f_2], onboot=true)
+
+    # add snmp alarms
+    std::Package(host=host, name="clearwater-snmp-alarm-agent", state="installed", requires=self.cw_mgmt)
 end
 
 implementation chronos for ClearwaterService:
@@ -309,7 +314,7 @@ implementation vellum for Vellum:
 end
 
 implementation vellumMemento for Vellum:
-    std::Package(host=host, name="memento-cassandra", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)    
+    std::Package(host=host, name="memento-cassandra", state="installed", provides=self.cw_mgmt, requires=self.local_cfg)
 end
 
 implementation vellumDNS for Vellum:

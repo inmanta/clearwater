@@ -5,7 +5,6 @@ import ssh
 import ip
 
 entity ManagedClearWater extends ClearWater:
-    number ellis_instances
     number bono_instances
     number sprout_instances
     number homer_instances
@@ -18,20 +17,19 @@ entity ManagedClearWater extends ClearWater:
     string flavor
 end
 
-std::OS vm_os                       [1] -- [0:] ManagedClearWater mcw
-
-openstack::Network external_network [1] -- [0:] ManagedClearWater mcw
-openstack::Provider provider        [1] -- [0:] ManagedClearWater mcw
-openstack::Project project          [1] -- [0:] ManagedClearWater mcw
-openstack::Subnet mgmt_network      [1] -- [0:] ManagedClearWater mcw
-ssh::Key key_pair                   [1] -- [0:] ManagedClearWater mcw
-openstack::SecurityGroup base_group [1] -- [0:] ManagedClearWater mcw
-openstack::SecurityGroup sg_ellis   [1] -- [0:] ManagedClearWater mcw_ellis
-openstack::SecurityGroup sg_bono    [1] -- [0:] ManagedClearWater mcw_bono
-openstack::SecurityGroup sg_sprout  [1] -- [0:] ManagedClearWater mcw_sprout
-openstack::SecurityGroup sg_dime    [1] -- [0:] ManagedClearWater mcw_homestead
-openstack::SecurityGroup sg_homer   [1] -- [0:] ManagedClearWater mcw_homer
-openstack::SecurityGroup sg_vellum  [1] -- [0:] ManagedClearWater mcw_ralf
+ManagedClearWater.vm_os             [1] -- std::OS
+ManagedClearWater.external_network  [1] -- openstack::Network
+ManagedClearWater.provider          [1] -- openstack::Provider
+ManagedClearWater.project           [1] -- openstack::Project
+ManagedClearWater.mgmt_network      [1] -- openstack::Subnet
+ManagedClearWater.key_pair          [1] -- ssh::Key
+ManagedClearWater.base_group        [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_ellis          [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_bono           [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_sprout         [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_dime           [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_homer          [1] -- openstack::SecurityGroup
+ManagedClearWater.sg_vellum         [1] -- openstack::SecurityGroup
 
 entity ClearwaterVNF:
     """
@@ -41,28 +39,39 @@ entity ClearwaterVNF:
 end
 
 entity Host extends openstack::Host, clearwater::Host:
-
+    """
+        A clearwater openstack host
+    """
 end
+
 implement Host using std::hostDefaults, mInmantaAgent, clearwater::privateIP, openstack::openstackVM
 implement Host using openstack::eth0Port when subnet is defined
 implement Host using clearwater::hostRecords when clearwater.create_dns_records
 
-Host hosts [1:] -- [1] ClearwaterVNF vnf
-ClearwaterService services [0:] -- [1] ClearwaterVNF vnf
-ManagedClearWater clearwater [1] -- [0:] ClearwaterVNF vnfs
+Host.vnf [1] -- ClearwaterVNF.hosts [1:]
+ClearwaterService.vnf [1] -- ClearwaterVNF.services [0:]
+ClearwaterVNF.clearwater [1] -- ManagedClearWater.vnfs [0:]
+
+entity SecurityGroup extends openstack::SecurityGroup:
+    """
+        A security group to protect a VNF
+    """
+end
+
+implementation vnfSec for SecurityGroup:
+end
+
+implement SecurityGroup using vnfSec
 
 entity Homer extends ClearwaterVNF:
-
 end
 implement Homer using mHomer
 
 entity Ellis extends ClearwaterVNF:
-
 end
 implement Ellis using mEllis
 
 entity Bono extends ClearwaterVNF:
-
 end
 implement Bono using mBono
 
@@ -73,19 +82,17 @@ implement Sprout using mSprout
 implement Sprout using mSproutMemento when memento
 
 entity Dime extends ClearwaterVNF:
-
 end
 implement Dime using mDime
 
 entity Vellum extends ClearwaterVNF:
-
 end
 implement Vellum using mVellum
 
 implementation mDefaults for ManagedClearWater:
     self.vm_os = ubuntu::ubuntu1404
 
-    sg_base = openstack::SecurityGroup(provider=provider, project=project, name="cw_base", description="Clearwater base")
+    sg_base = SecurityGroup(provider=provider, project=project, name="cw_base", description="Clearwater base")
     openstack::IPrule(group=sg_base, direction="egress", ip_protocol="all", remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="icmp", remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg_base, direction="ingress", ip_protocol="tcp", port=22, remote_prefix="0.0.0.0/0")
@@ -122,30 +129,30 @@ implement ManagedClearWater using clearwaterDNS when create_dns_records
 
 implementation mEllis for Ellis:
     self.name = "ellis"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_ellis", description="Clearwater ellis WebUI")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_ellis",
+                       description="Clearwater ellis WebUI")
     clearwater.sg_ellis = sg
 
     # Web interface
     openstack::IPrule(group=sg, direction="ingress", ip_protocol="tcp", port=80, remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg, direction="ingress", ip_protocol="tcp", port=443, remote_prefix="0.0.0.0/0")
 
-    for i in std::sequence(clearwater.ellis_instances, 1):
-        host = Host(provider=clearwater.provider, project=clearwater.project, name="ellis-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
-                    subnet=clearwater.mgmt_network, vnf=self)
-        host.vm.security_groups=[clearwater.base_group, sg]
+    i = 1
+    host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
+                image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                subnet=clearwater.mgmt_network, vnf=self)
+    host.vm.security_groups=[clearwater.base_group, sg]
 
-        clearwater::Ellis(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+    clearwater::Ellis(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
 
-        fip = openstack::FloatingIP(provider=clearwater.provider, project=clearwater.project, external_network=clearwater.external_network,
-                                    port=host.vm.eth0_port)
-        host.public_ip = ip::IP(v4=std::getfact(fip, "ip_address"))
-    end
+    fip = openstack::FloatingIP(provider=clearwater.provider, project=clearwater.project, external_network=clearwater.external_network,
+                                port=host.vm.eth0_port)
+    host.public_ip = ip::IP(v4=std::getfact(fip, "ip_address"))
 end
 
 implementation mBono for Bono:
     self.name = "bono"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_bono", description="Clearwater bono")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_bono", description="Clearwater bono")
     clearwater.sg_bono = sg
     # STUN signaling
     openstack::IPrule(group=sg, direction="ingress", ip_protocol="tcp", port=3478, remote_prefix="0.0.0.0/0")
@@ -165,7 +172,7 @@ implementation mBono for Bono:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=5058, remote_group=clearwater.sg_sprout)
 
     for i in std::sequence(clearwater.bono_instances, 1):
-        host = Host(provider=clearwater.provider, project=clearwater.project, name="bono-{{i}}.{{clearwater.private_domain}}",
+        host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
@@ -180,7 +187,8 @@ end
 
 implementation mSprout for Sprout:
     self.name="sprout"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_sprout", description="Clearwater sprout")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_sprout",
+                       description="Clearwater sprout")
     clearwater.sg_sprout = sg
 
     # Internal sip signaling
@@ -212,7 +220,8 @@ end
 
 implementation mHomer for Homer:
     self.name = "homer"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_homer", description="Clearwater homer")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_homer",
+                       description="Clearwater homer")
     clearwater.sg_homer = sg
 
     # REST interface
@@ -231,7 +240,7 @@ end
 
 implementation mDime for Dime:
     self.name = "dime"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_dime", description="Clearwater dime")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_dime", description="Clearwater dime")
     clearwater.sg_dime = sg
 
     # REST interface
@@ -257,7 +266,8 @@ end
 
 implementation mVellum for Vellum:
     self.name = "vellum"
-    sg = openstack::SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_vellum", description="Clearwater vellum")
+    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_vellum",
+                       description="Clearwater vellum")
     clearwater.sg_vellum = sg
 
     # Chronos, memcached and Cassandra
@@ -272,7 +282,7 @@ implementation mVellum for Vellum:
     # Cassandra clients
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_homer)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_dime)
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_sprout)        
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_sprout)
 
     for i in std::sequence(clearwater.vellum_instances, 1):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="vellum-{{i}}.{{clearwater.private_domain}}", image=clearwater.image_id,
