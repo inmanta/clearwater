@@ -42,9 +42,11 @@ entity Host extends openstack::Host, clearwater::Host:
     """
         A clearwater openstack host
     """
+    bool install_agent=true
 end
 
-implement Host using std::hostDefaults, mInmantaAgent, clearwater::privateIP, openstack::openstackVM
+implement Host using std::hostDefaults, clearwater::privateIP, openstack::openstackVM
+implement Host using openstack::userData when install_agent
 implement Host using openstack::eth0Port when subnet is defined
 implement Host using clearwater::hostRecords when clearwater.create_dns_records
 
@@ -109,16 +111,6 @@ implementation mDefaults for ManagedClearWater:
     Bono(clearwater=self)
     Vellum(clearwater=self)
     Sprout(clearwater=self)
-end
-
-implementation mInmantaAgent for openstack::Host:
-    env_name = std::environment_name()
-    env_id = std::environment()
-    env_server = std::environment_server()
-    port = std::server_port()
-    release = std::get_env("INMANTA_RELEASE", "stable")
-
-    self.user_data = std::template("clearwater/user_data.j2")
 end
 
 implement ManagedClearWater using mDefaults
