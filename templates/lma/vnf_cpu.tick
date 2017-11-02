@@ -1,0 +1,91 @@
+var mean_util = 60
+
+var util = stream
+    |from()
+        .measurement('cpu')
+        .groupBy('vnf')
+    |default()
+        .tag('cpu', '')
+    |where(lambda: "cpu" == 'cpu-total')
+    |eval(lambda: 100.0 - "usage_idle")
+        .as('usage_util')
+    |window()
+        .period(60s)
+        .every(10s)
+        .align()
+    |mean('usage_util')
+        .as('mean')
+
+var system = stream
+    |from()
+        .measurement('system')
+    |default()
+        .field('n_cpus', 0)
+    |groupBy('vnf', 'host')
+    |where(lambda: "n_cpus" > 0)
+    |window()
+        .period(60s)
+        .every(10s)
+        .align()
+    |last('n_cpus')
+        .as('n_cpus')
+    |groupBy('vnf')
+
+var cpus = system
+    |sum('n_cpus')
+        .as('n')
+
+var hosts = system
+    |count('n_cpus')
+        .as('n')
+
+var min_max = system
+    |default()
+        .tag('min_vnf_instances', 'na')
+        .tag('max_vnf_instances', 'na')
+    |where(lambda: "min_vnf_instances" != 'na' AND "max_vnf_instances" != 'na')
+    |eval(lambda: float("min_vnf_instances"), lambda: float("max_vnf_instances"))
+        .as('min', 'max')
+
+var all = util
+    |join(cpus, hosts, min_max)
+        .as('util', 'cpus', 'hosts', 'bounds')
+        .streamName('vnf_scale')
+    |eval(
+        lambda: "util.mean",
+        lambda: "cpus.n",
+        lambda: "hosts.n",
+        lambda: "cpus.n" / "hosts.n",
+        lambda: ceil(("util.mean" * float("cpus.n")) / float(mean_util * ("cpus.n" / "hosts.n"))),
+        lambda: "bounds.min",
+        lambda: "bounds.max"
+    )
+        .as('util', 'cpus', 'hosts', 'cpu_per_host', 'required_hosts', 'min', 'max')
+
+all
+    |httpOut('all')
+
+all
+    |influxDBOut()
+        .database('lma')
+        .retentionPolicy('autogen')
+
+var scale = all
+    |eval(lambda: min("max", max("min", "required_hosts")), lambda: "hosts")
+        .as('scale', 'current')
+
+scale
+    |httpOut('scale')
+
+scale
+    |influxDBOut()
+        .database('lma')
+        .retentionPolicy('autogen')
+
+scale
+    |alert()
+        .crit(lambda: "scale" != "current")
+        .stateChangesOnly(5m)
+        // retrigger if after 5m not solved
+        .exec('/usr/local/bin/inmanta_trigger')
+        .log('/tmp/alert.log')

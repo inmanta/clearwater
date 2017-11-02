@@ -1,17 +1,25 @@
-import openstack
-import ubuntu
+"""
+    This module contains openstack based VNF models for Clearwater. This model takes on the function of VNF manager.
+
+    :copyright: 2017 Inmanta NV
+    :contact: code@inmanta.com
+"""
 import clearwater
-import ssh
+import clearwater::state
 import ip
+import openstack
+import ssh
+import ubuntu
+import state
 
 entity ManagedClearWater extends ClearWater:
+    bool memento
+ 
     number bono_instances
     number sprout_instances
     number homer_instances
     number vellum_instances
     number dime_instances
-
-    bool memento
 
     string image_id
     string flavor
@@ -36,6 +44,9 @@ entity ClearwaterVNF:
         A baseclass for a clearwater VNF. This VNF defines the VNFC
     """
     string name
+    number? instances
+    number min_instances=1
+    number max_instances=10
 end
 
 entity Host extends openstack::Host, clearwater::Host:
@@ -70,6 +81,7 @@ end
 implement Homer using mHomer
 
 entity Ellis extends ClearwaterVNF:
+    number max_instances=1
 end
 implement Ellis using mEllis
 
@@ -88,6 +100,7 @@ end
 implement Dime using mDime
 
 entity Vellum extends ClearwaterVNF:
+    number min_instances=3
 end
 implement Vellum using mVellum
 
@@ -105,12 +118,12 @@ implementation mDefaults for ManagedClearWater:
     self.base_group = sg_base
 
     # Create VNFs
-    Homer(clearwater=self)
-    Ellis(clearwater=self)
-    Dime(clearwater=self)
-    Bono(clearwater=self)
-    Vellum(clearwater=self)
-    Sprout(clearwater=self)
+    Ellis(clearwater=self, instances=1)
+    Homer(clearwater=self, instances=self.homer_instances)
+    Dime(clearwater=self, instances=self.dime_instances)
+    Bono(clearwater=self, instances=self.bono_instances)
+    Vellum(clearwater=self, instances=self.vellum_instances)
+    Sprout(clearwater=self, instances=self.sprout_instances)
 end
 
 implement ManagedClearWater using mDefaults
@@ -121,7 +134,7 @@ implement ManagedClearWater using clearwaterDNS when create_dns_records
 
 implementation mEllis for Ellis:
     self.name = "ellis"
-    sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_ellis",
+    sg = SecurityGroup(provider=self.clearwater.provider, project=clearwater.project, name="cw_ellis",
                        description="Clearwater ellis WebUI")
     clearwater.sg_ellis = sg
 
@@ -129,17 +142,19 @@ implementation mEllis for Ellis:
     openstack::IPrule(group=sg, direction="ingress", ip_protocol="tcp", port=80, remote_prefix="0.0.0.0/0")
     openstack::IPrule(group=sg, direction="ingress", ip_protocol="tcp", port=443, remote_prefix="0.0.0.0/0")
 
-    i = 1
-    host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
-                image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
-                subnet=clearwater.mgmt_network, vnf=self)
-    host.vm.security_groups=[clearwater.base_group, sg]
+    # Define all existing or new instances
+    for i in clearwater::instances(self):
+        host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
+                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    subnet=clearwater.mgmt_network, vnf=self)
+        host.vm.security_groups=[clearwater.base_group, sg]
 
-    clearwater::Ellis(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Ellis(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
 
-    fip = openstack::FloatingIP(provider=clearwater.provider, project=clearwater.project, external_network=clearwater.external_network,
-                                port=host.vm.eth0_port)
-    host.public_ip = ip::IP(v4=std::getfact(fip, "ip_address"))
+        fip = openstack::FloatingIP(provider=clearwater.provider, project=clearwater.project, external_network=clearwater.external_network,
+                                    port=host.vm.eth0_port)
+        host.public_ip = ip::IP(v4=std::getfact(fip, "ip_address"))
+    end
 end
 
 implementation mBono for Bono:
@@ -163,13 +178,13 @@ implementation mBono for Bono:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=5058, remote_group=sg)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=5058, remote_group=clearwater.sg_sprout)
 
-    for i in std::sequence(clearwater.bono_instances, 1):
+    for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Bono(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Bono(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
 
         fip = openstack::FloatingIP(provider=clearwater.provider, project=clearwater.project, external_network=clearwater.external_network,
                                     port=host.vm.eth0_port)
@@ -195,13 +210,13 @@ implementation mSprout for Sprout:
     # Homestead registration
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9888, remote_group=clearwater.sg_dime)
 
-    for i in std::sequence(clearwater.sprout_instances, 1):
+    for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="sprout-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Sprout(clearwater=clearwater, host=host, memento=memento, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Sprout(clearwater=clearwater, host=host, memento=memento, vnf_instance=i, vnf=self)
     end
 end
 
@@ -220,17 +235,18 @@ implementation mHomer for Homer:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7888, remote_group=clearwater.sg_sprout)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7888, remote_group=clearwater.sg_ellis)
 
-    for i in std::sequence(clearwater.homer_instances, 1):
+    for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="homer-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Homer(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Homer(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
     end
 end
 
 implementation mDime for Dime:
+    std::print(self.instances)
     self.name = "dime"
     sg = SecurityGroup(provider=clearwater.provider, project=clearwater.project, name="cw_dime", description="Clearwater dime")
     clearwater.sg_dime = sg
@@ -245,14 +261,13 @@ implementation mDime for Dime:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=10888, remote_group=clearwater.sg_bono)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=10888, remote_group=clearwater.sg_vellum)
 
-
-    for i in std::sequence(clearwater.dime_instances, 1):
+    for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="dime-{{i}}.{{clearwater.private_domain}}",
                     image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Dime(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Dime(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
     end
 end
 
@@ -268,7 +283,6 @@ implementation mVellum for Vellum:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7000, remote_group=clearwater.sg_vellum)
 
     # Chronos and Astaire
-    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=7253, remote_group=clearwater.sg_vellum)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11311, remote_group=clearwater.sg_vellum)
 
     # Cassandra clients
@@ -276,11 +290,11 @@ implementation mVellum for Vellum:
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_dime)
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_sprout)
 
-    for i in std::sequence(clearwater.vellum_instances, 1):
+    for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="vellum-{{i}}.{{clearwater.private_domain}}", image=clearwater.image_id,
                     flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404, subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
-        clearwater::Vellum(clearwater=clearwater, host=host, instance_name="{{ name }}-{{i}}", vnf=self)
+        clearwater::Vellum(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
     end
 end

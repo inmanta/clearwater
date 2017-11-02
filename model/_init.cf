@@ -1,10 +1,18 @@
-import ip::services
+"""
+    This module models clearwater software components
+
+    :copyright: 2017 Inmanta NV
+    :contact: code@inmanta.com
+"""
 import apt
-import ip
+#import clearwater::state
+import clearwater::openstack
 import dns
-import param
 import exec
+import ip
+import ip::services
 import logging
+import param
 
 entity ClearWater:
     """
@@ -12,7 +20,7 @@ entity ClearWater:
     """
     string public_domain
     string private_domain
-    bool create_dns_records=false
+    bool create_dns_records
     ip::ip[] dns_servers
 
     number base_number=6505550000
@@ -49,7 +57,14 @@ ClearWater.public_zone [0:1] -- dns::Zone
 ClearWater.private_zone [0:1] -- dns::Zone
 
 entity ClearwaterService extends ip::services::Server:
+    """
+        A clearwater service component
+    """
     string instance_name
+    bool create_dns_records
+    string vnf_name
+    number vnf_instance
+    bool decommission
 end
 
 # Use this package as synchronisation point
@@ -64,6 +79,7 @@ entity Homer extends ClearwaterService:
         read, updated and deleted using a standard XCAP interface. As with Homestead, the Homer nodes use Vellum as the data store
         for all long lived data.
     """
+    string vnf_name="homer"
 end
 
 entity Ellis extends ClearwaterService:
@@ -72,6 +88,7 @@ entity Ellis extends ClearwaterService:
         service settings. It is not intended to be a part of production Clearwater deployments (it is not easy to horizontally
         scale because of the MySQL underpinnings for one thing) but to make the system easy to use out of the box.
     """
+    string vnf_name="ellis"
 end
 
 entity Bono extends ClearwaterService:
@@ -90,6 +107,7 @@ entity Bono extends ClearwaterService:
         Alternatively, Clearwater can be deployed with a third party P-CSCF or Session Border Controller implementing P-CSCF.
         In this case Bono nodes are not required.
     """
+    string vnf_name="bono"
 end
 
 entity Sprout extends ClearwaterService:
@@ -107,6 +125,7 @@ entity Sprout extends ClearwaterService:
         (and backed by the long-lived data stores on Vellum).
     """
     bool memento=true
+    string vnf_name="sprout"
 end
 
 entity Dime extends ClearwaterService:
@@ -125,6 +144,7 @@ entity Dime extends ClearwaterService:
           CDF (Charging Data Function) over the Rf billing interface. Ralf is stateless, using Vellum to maintain the long lived session
           state and run the timers necessary to enable it to conform to the Rf protocol.
     """
+    string vnf_name="dime"
 end
 
 entity Vellum extends ClearwaterService:
@@ -144,9 +164,11 @@ entity Vellum extends ClearwaterService:
           that enabled more rapid scale up and scale down of memcached clusters. This cluster is used by Sprout and Ralf for storing
           registration and session state.
     """
+    string vnf_name="vellum"
 end
 
 implementation clearwaterService for ClearwaterService:
+    self.instance_name = "{{vnf_name}}-{{vnf_instance}}"
     apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="http://repo.cw-ngv.com/archive/repo127/")
 
     cwdir = std::DefaultDirectory(host=host, path="/etc/clearwater")
@@ -173,6 +195,15 @@ implementation clearwaterService for ClearwaterService:
 
     # add snmp alarms
     std::Package(host=host, name="clearwater-snmp-alarm-agent", state="installed", requires=self.cw_mgmt)
+
+    # Add statemachine
+    #clearwater::state::VNFCState(service=self)
+    self.create_dns_records = true
+    self.decommission = false
+end
+
+implementation decommission for ClearwaterService:
+
 end
 
 implementation chronos for ClearwaterService:
@@ -194,7 +225,7 @@ implementation homerDNS for Homer:
 end
 
 implement Homer using homer, clearwaterService
-implement Homer using homerDNS when clearwater.create_dns_records
+implement Homer using homerDNS when clearwater.create_dns_records and create_dns_records
 
 ## Ellis
 implementation ellis for Ellis:
@@ -233,7 +264,7 @@ implementation ellisDNS for Ellis:
 end
 
 implement Ellis using ellis, clearwaterService
-implement Ellis using ellisDNS when clearwater.create_dns_records
+implement Ellis using ellisDNS when clearwater.create_dns_records and create_dns_records
 
 ## Bono
 implementation bono for Bono:
@@ -248,18 +279,18 @@ end
 implementation bonoDNS for Bono:
     dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="bono", ipaddress=host.private_ip.v4)
-    dns::Record(zone=clearwater.private_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{host.name}}.")
+    dns::ResourceRecord(zone=clearwater.private_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{host.name}}.")
 
     dns::A(zone=clearwater.public_zone, resource="@", ipaddress=host.public_ip.v4)
     public_name = std::replace(host.name, clearwater.private_domain, clearwater.public_domain)
     dns::A(zone=clearwater.public_zone, resource="{{ public_name }}.", ipaddress=host.public_ip.v4)
 
-    dns::Record(zone=clearwater.public_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{public_name}}.")
-    dns::Record(zone=clearwater.public_zone, resource="_sip._udp", record_type="SRV", value="0 0 5060 {{public_name}}.")
+    dns::ResourceRecord(zone=clearwater.public_zone, resource="_sip._tcp", record_type="SRV", value="0 0 5060 {{public_name}}.")
+    dns::ResourceRecord(zone=clearwater.public_zone, resource="_sip._udp", record_type="SRV", value="0 0 5060 {{public_name}}.")
 end
 
 implement Bono using bono, clearwaterService
-implement Bono using bonoDNS when clearwater.create_dns_records
+implement Bono using bonoDNS when clearwater.create_dns_records and create_dns_records
 
 ## Sprout
 implementation sprout for Sprout:
@@ -281,14 +312,14 @@ implementation sproutDNS for Sprout:
     dns::A(zone=clearwater.private_zone, resource="scscf.sprout", ipaddress=host.private_ip.v4)
     dns::A(zone=clearwater.private_zone, resource="icscf.sprout", ipaddress=host.private_ip.v4)
 
-    dns::Record(zone=clearwater.private_zone, resource="_sip._tcp.sprout", record_type="SRV", value="0 0 5054 {{host.name}}.")
-    dns::Record(zone=clearwater.private_zone, resource="_sip._tcp.scscf.sprout", record_type="SRV", value="0 0 5054 {{host.name}}.")
-    dns::Record(zone=clearwater.private_zone, resource="_sip._tcp.icscf.sprout", record_type="SRV", value="0 0 5052 {{host.name}}.")
+    dns::ResourceRecord(zone=clearwater.private_zone, resource="_sip._tcp.sprout", record_type="SRV", value="0 0 5054 {{host.name}}.")
+    dns::ResourceRecord(zone=clearwater.private_zone, resource="_sip._tcp.scscf.sprout", record_type="SRV", value="0 0 5054 {{host.name}}.")
+    dns::ResourceRecord(zone=clearwater.private_zone, resource="_sip._tcp.icscf.sprout", record_type="SRV", value="0 0 5052 {{host.name}}.")
 end
 
 implement Sprout using sproutMemento when memento
 implement Sprout using sprout, clearwaterService, chronos
-implement Sprout using sproutDNS when clearwater.create_dns_records
+implement Sprout using sproutDNS when clearwater.create_dns_records and create_dns_records
 
 ## Dime
 implementation dime for Dime:
@@ -304,7 +335,7 @@ implementation dimeDNS for Dime:
 end
 
 implement Dime using dime, clearwaterService
-implement Dime using dimeDNS when clearwater.create_dns_records
+implement Dime using dimeDNS when clearwater.create_dns_records and create_dns_records
 
 ## Vellum
 implementation vellum for Vellum:
@@ -323,20 +354,20 @@ implementation vellumDNS for Vellum:
 end
 
 implement Vellum using vellum, vellumMemento, clearwaterService
-implement Vellum using vellumDNS when clearwater.create_dns_records
+implement Vellum using vellumDNS when clearwater.create_dns_records and create_dns_records
 
 ## Managed DNS
 # By default each hosts adds its hostname to the private zone
 implementation clearwaterDNS for ClearWater:
-    dns::Record(zone=private_zone, resource="bono", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp")
-    dns::Record(zone=private_zone, resource="bono", record_type="NAPTR", value="1 2 \"S\" \"SIP+D2U\" \"\" _sip._udp")
+    dns::ResourceRecord(zone=private_zone, resource="bono", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp")
+    dns::ResourceRecord(zone=private_zone, resource="bono", record_type="NAPTR", value="1 2 \"S\" \"SIP+D2U\" \"\" _sip._udp")
 
-    dns::Record(zone=private_zone, resource="sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.sprout")
-    dns::Record(zone=private_zone, resource="scscf.sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.scscf.sprout")
-    dns::Record(zone=private_zone, resource="icscf.sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.icscf.sprout")
+    dns::ResourceRecord(zone=private_zone, resource="sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.sprout")
+    dns::ResourceRecord(zone=private_zone, resource="scscf.sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.scscf.sprout")
+    dns::ResourceRecord(zone=private_zone, resource="icscf.sprout", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp.icscf.sprout")
 
-    dns::Record(zone=public_zone, resource="@", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp")
-    dns::Record(zone=public_zone, resource="@", record_type="NAPTR", value="1 2 \"S\" \"SIP+D2U\" \"\" _sip._udp")
+    dns::ResourceRecord(zone=public_zone, resource="@", record_type="NAPTR", value="1 1 \"S\" \"SIP+D2T\" \"\" _sip._tcp")
+    dns::ResourceRecord(zone=public_zone, resource="@", record_type="NAPTR", value="1 2 \"S\" \"SIP+D2U\" \"\" _sip._udp")
 end
 
 implement ClearWater using clearwaterDNS when create_dns_records
