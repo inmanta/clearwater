@@ -1,11 +1,13 @@
-import heka::decoder
+import clearwater
+import clearwater::openstack
+import grafana
 import heka
+import heka::decoder
+import influx::kapacitor
+import influx::telegraf::inputs
 import lma
 import lma::analytics::kapacitor
-import influx::telegraf::inputs
-import influx::kapacitor
-import clearwater::openstack
-import clearwater
+import lma::dashboards::grafana
 import openstack
 
 implementation logDecoders for std::HostConfig:
@@ -16,6 +18,13 @@ implementation logDecoders for std::HostConfig:
                            module_dir=host.lma_collector.module_dir)
 end
 #implement std::HostConfig using logDecoders when host.monitor is defined
+
+implementation grafanaDashboards for lma::dashboards::grafana::Dashboard:
+    grafana::Dashboard(server=grafana_server, name="VNF Scale", content=std::source("clearwater/vnfscaling.json"),
+                       requires=grafana_server)
+end
+
+implement lma::dashboards::grafana::Dashboard using grafanaDashboards
 
 implementation vnfTags for clearwater::openstack::Host:
     self.tags = [
