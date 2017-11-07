@@ -1,27 +1,30 @@
 # Deployment definitions
 home_domain={{clearwater.public_domain}}
 sprout_hostname=sprout.{{clearwater.private_domain}}
-#sprout_hostname_mgmt=sprout.{{clearwater.private_domain}}:9886
+sprout_hostname_mgmt=sprout.{{clearwater.private_domain}}:9886
 hs_hostname=hs.{{clearwater.private_domain}}:8888
-#hs_hostname_mgmt=hs.{{clearwater.private_domain}}:8886
+hs_hostname_mgmt=hs.{{clearwater.private_domain}}:8886
 hs_provisioning_hostname=hs.{{clearwater.private_domain}}:8889
 xdms_hostname=homer.{{clearwater.private_domain}}:7888
-ralf_hostname=ralf.{{clearwater.private_domain}}:7888
-# cdf_identity=cdf.{{clearwater.private_domain}}
+#ralf_hostname=ralf.{{clearwater.private_domain}}:10888
+cdf_identity=cdf.{{clearwater.private_domain}}
 sprout_impi_store=vellum.{{clearwater.private_domain}}
 sprout_registration_store=vellum.{{clearwater.private_domain}}
 cassandra_hostname=vellum.{{clearwater.private_domain}}
 chronos_hostname=vellum.{{clearwater.private_domain}}
-ralf_session_store=vellum.{{clearwater.private_domain}}
-memento_auth_store=vellum.{{clearwater.private_domain}}
-# sas_server=0.0.0.0
-# enum_server=
+#ralf_session_store=vellum.{{clearwater.private_domain}}
+sas_server=0.0.0.0
+enum_server=sprout.{{clearwater.private_domain}}
+scscf_uri=sip:scscf.sprout.{{clearwater.private_domain}}
+upstream_port=0
 
 # Email server configuration
 smtp_smarthost=localhost
 #smtp_username=<username>
 #smtp_password=<password>
 email_recovery_sender=clearwater@example.org
+
+billing_realm=cdf.clearwater.local
 
 # Keys
 signup_key={{ signup_key }}

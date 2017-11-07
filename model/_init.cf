@@ -246,7 +246,7 @@ implementation ellis for Ellis:
 
     # setup shared config
     f = std::ConfigFile(host=host, path="/etc/clearwater/shared_config",
-                        content=std::template("clearwater/shared_config.template"),
+                        content=std::template("clearwater/shared_config.j2"),
                         requires=p, reload=true)
     ccs = std::ConfigFile(host=host, path="/usr/bin/cw_config_setup", content=std::source("clearwater/config_setup.sh"),
                           mode=755)
