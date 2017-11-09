@@ -14,7 +14,7 @@ import state
 
 entity ManagedClearWater extends ClearWater:
     bool memento
- 
+
     number bono_instances
     number sprout_instances
     number homer_instances
@@ -284,6 +284,7 @@ implementation mVellum for Vellum:
 
     # Chronos and Astaire
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11311, remote_group=clearwater.sg_vellum)
+    openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=11311, remote_group=clearwater.sg_sprout)
 
     # Cassandra clients
     openstack::GroupRule(group=sg, direction="ingress", ip_protocol="tcp", port=9160, remote_group=clearwater.sg_homer)
