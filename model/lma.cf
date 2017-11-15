@@ -1,23 +1,22 @@
 import clearwater
 import clearwater::openstack
 import grafana
-import heka
-import heka::decoder
 import influx::kapacitor
 import influx::telegraf::inputs
 import lma
 import lma::analytics::kapacitor
 import lma::dashboards::grafana
 import openstack
+import exec
 
-implementation logDecoders for std::HostConfig:
-    heka::LuaModule(hekad=host.lma_collector.hekad, name="clearwater_log", type="decoders",
-                    module=std::source("clearwater/lma/clearwater_log.lua"),
-                    module_dir=host.lma_collector.module_dir)
-    heka::decoder::Sandbox(hekad=host.lma_collector.hekad, name="clearwater", lua_module="clearwater_log",
-                           module_dir=host.lma_collector.module_dir)
+implementation monitStatus for clearwater::openstack::Host:
+    lib = exec::Run(host=self, command="/usr/bin/pip3 install xmltodict", unless="python3 -c 'import xmltodict'")
+    script = std::File(host=self, path="/usr/local/bin/monit.py", owner="root", group="root", mode=755,
+                       content=std::source("clearwater/lma/monit.py"), requires=lib)
+    agent = self.lma_collector.telegraf_agent
+    influx::telegraf::inputs::Exec(agent=agent, commands=["/usr/local/bin/monit.py"], data_format="json", name_suffix="_monit",
+                                   tag_keys=["process"], name="monit")
 end
-#implement std::HostConfig using logDecoders when host.monitor is defined
 
 implementation grafanaDashboards for lma::dashboards::grafana::Dashboard:
     grafana::Dashboard(server=grafana_server, name="VNF Scale", content=std::source("clearwater/vnfscaling.json"),
@@ -28,7 +27,7 @@ implement lma::dashboards::grafana::Dashboard using grafanaDashboards
 
 implementation vnfTags for clearwater::openstack::Host:
     self.tags = [
-        lma::Tag(key="vnf", value=self.vnf.name), 
+        lma::Tag(key="vnf", value=self.vnf.name),
         lma::Tag(key="min_vnf_instances", value="{{ vnf.min_instances }}"),
         lma::Tag(key="max_vnf_instances", value="{{ vnf.max_instances }}")
     ]
@@ -38,8 +37,18 @@ implementation infraTags for openstack::Host:
     self.tags = [lma::Tag(key="infra", value="true")]
 end
 
-implement clearwater::openstack::Host using vnfTags when monitor is defined
+implement clearwater::openstack::Host using vnfTags, monitStatus when monitor is defined
 implement openstack::Host using infraTags when monitor is defined
+
+implementation policy for lma::analytics::kapacitor::Kapacitor:
+    influx::kapacitor::TickScript(processor=self.processor, database="lma", rp="autogen", enabled=true, type="stream",
+                                  task_id="vnf_cpu_alert", script=std::template("clearwater/lma/vnf_cpu.tick"))
+
+    influx::kapacitor::TickScript(processor=self.processor, database="lma", rp="autogen", enabled=true, type="stream",
+                                  task_id="monit", script=std::template("clearwater/lma/monit.tick"))
+end
+
+implement lma::analytics::kapacitor::Kapacitor using policy
 
 implementation bonoSNMP for clearwater::Bono:
     self.host.tags = lma::Tag(key="vnfc", value=self.instance_name)
@@ -685,10 +694,3 @@ implementation sproutSNMP for clearwater::Sprout:
 end
 
 implement clearwater::Sprout using sproutSNMP when host.monitor is defined and host.monitor.telegraf_feature is defined and host.vnf.name == "sprout"
-
-implementation policy for lma::analytics::kapacitor::Kapacitor:
-    influx::kapacitor::TickScript(processor=self.processor, database="lma", rp="autogen", enabled=true, type="stream",
-                                  task_id="vnf_cpu_alert", script=std::template("clearwater/lma/vnf_cpu.tick"))
-end
-
-implement lma::analytics::kapacitor::Kapacitor using policy

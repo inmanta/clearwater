@@ -14,13 +14,13 @@ entity VNFCState extends state::StateMachine:
     """
 end
 
-VNFCState.service [1] -- clearwater::ClearwaterService
+VNFCState.service [1] -- clearwater::ClearwaterService.fsm [1]
 
 initial = state::State(name="initial", values={"dns_records": false, "decommission": false})
-up = state::State(name="up", values={"dns_records": true, "decommission": false})
-decommission = state::State(name="decommission", values={"dns_records": false, "decommission": true})
-remove = state::State(name="remove", values={"dns_records": false, "decommission": false})
-error = state::State(name="error", values={"dns_records": false, "decommission": false})
+up = state::State(name="up", label="success", values={"dns_records": true, "decommission": false})
+decommission = state::State(name="decommission", label="warning", values={"dns_records": false, "decommission": true})
+remove = state::State(name="remove", label="warning", values={"dns_records": false, "decommission": false})
+error = state::State(name="error", label="danger", values={"dns_records": true, "decommission": false})
 
 implementation vnfcFSMConfig for VNFCState:
     """
@@ -28,7 +28,7 @@ implementation vnfcFSMConfig for VNFCState:
     """
     # Give the FSM its config
     self.config = state::StateConfig(
-        states=[initial, up, decommission, error],
+        states=[initial, up, decommission, remove, error],
         initial_state=initial,
         allowed_transfers=[
             state::StateTransfer(from=initial, to=up, error=error),
@@ -43,12 +43,11 @@ implementation vnfcFSMConfig for VNFCState:
     # Set the current state (stored in the orchestrator)
     self.name = "{{ service.vnf_name }}_{{ service.vnf_instance }}"
     self.state = state::current_state(self)
-    std::print(state::create_fsm_metadata(self))
 end
 
 implementation vnfcStateConfig for VNFCState:
     """
-        This implementation sets variables on the VNFC in all states. Use this for example to set variables based on 
+        This implementation sets variables on the VNFC in all states. Use this for example to set variables based on
         values attached to the state.
     """
     self.service.create_dns_records = state::fsmvalue(self, "dns_records")
@@ -56,14 +55,48 @@ implementation vnfcStateConfig for VNFCState:
 end
 implement VNFCState using vnfcFSMConfig, vnfcStateConfig
 
-implementation vncfInitial for VNFCState:
+implementation vnfcInitial for VNFCState:
     """
-        The configuration for the initial state. The FSM progresses to the UP state when clearwater indicates that the 
+        The configuration for the initial state. The FSM progresses to the UP state when clearwater indicates that the
         configuration has been synchronised (cw-check_config_sync)
     """
     check = exec::Run(host=self.service.host, requires=self.service.cw_mgmt, send_event=true,
                       command="/usr/bin/cw-check_config_sync")
-    state::Transition(fsm=self, to=up, on_error=error, requires=check)
+    state::Transition(fsm=self, to=up, on_error=initial, requires=[check, self.requires])
 end
 
-implement VNFCState using vncfInitial when self.state == initial
+implement VNFCState using vnfcInitial when self.state == initial
+
+implementation vnfcUp for VNFCState:
+    """
+        The configuration for the up state. This is mainly required to keep the state parameter resource active. When a VNFC
+        is removed from the model, it can be purged with purge_on_delete.
+    """
+    state::Transition(fsm=self, to=up, on_error=initial, requires=self.requires)
+end
+
+implement VNFCState using vnfcUp when self.state == up
+
+implementation vnfcDecommission for VNFCState:
+    """
+        The configuration for the decommission state.
+    """
+    state::Transition(fsm=self, to=remove, on_error=remove, requires=self.requires)
+end
+
+implement VNFCState using vnfcDecommission when self.state == decommission
+
+implementation vnfcRemove for VNFCState:
+    """
+        The configuration for the remove state. This will also remove the state param from server. This will kick-in the
+        purge_on_delete mechanism.
+    """
+end
+implement VNFCState using vnfcRemove when self.state == remove
+
+implementation vnfError for VNFCState:
+    check = exec::Run(host=self.service.host, requires=self.service.cw_mgmt, send_event=true,
+                      command="/bin/true")
+    state::Transition(fsm=self, to=initial, on_error=error, requires=check)
+end
+implement VNFCState using vnfError when self.state == error

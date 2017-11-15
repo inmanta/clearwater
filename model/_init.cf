@@ -5,7 +5,7 @@
     :contact: code@inmanta.com
 """
 import apt
-#import clearwater::state
+import clearwater::state
 import clearwater::openstack
 import dns
 import exec
@@ -197,9 +197,7 @@ implementation clearwaterService for ClearwaterService:
     std::Package(host=host, name="clearwater-snmp-alarm-agent", state="installed", requires=self.cw_mgmt)
 
     # Add statemachine
-    #clearwater::state::VNFCState(service=self)
-    self.create_dns_records = true
-    self.decommission = false
+    clearwater::state::VNFCState(service=self)
 end
 
 implementation decommission for ClearwaterService:
@@ -224,8 +222,14 @@ implementation homerDNS for Homer:
     dns::A(zone=clearwater.private_zone, resource="{{ host.name }}.", ipaddress=host.private_ip.v4)
 end
 
+implementation decommissionHomer for Homer:
+    unmon = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g homer")
+    q = exec::Run(host=self.host, command="/usr/sbin/service homer stop", requires=unmon, provides=self.fsm, send_event=true)
+end
+
 implement Homer using homer, clearwaterService
 implement Homer using homerDNS when clearwater.create_dns_records and create_dns_records
+implement Homer using decommission, decommissionHomer when decommission
 
 ## Ellis
 implementation ellis for Ellis:
@@ -289,8 +293,14 @@ implementation bonoDNS for Bono:
     dns::ResourceRecord(zone=clearwater.public_zone, resource="_sip._udp", record_type="SRV", value="0 0 5060 {{public_name}}.")
 end
 
+implementation decommissionBono for Bono:
+    unmon = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g bono")
+    q = exec::Run(host=self.host, command="/usr/sbin/service bono quiesce", requires=unmon, provides=self.fsm, send_event=true)
+end
+
 implement Bono using bono, clearwaterService
 implement Bono using bonoDNS when clearwater.create_dns_records and create_dns_records
+implement Bono using decommission, decommissionBono when decommission
 
 ## Sprout
 implementation sprout for Sprout:
@@ -317,6 +327,12 @@ implementation sproutDNS for Sprout:
     dns::ResourceRecord(zone=clearwater.private_zone, resource="_sip._tcp.icscf.sprout", record_type="SRV", value="0 0 5052 {{host.name}}.")
 end
 
+implementation decommissionSprout for Sprout:
+    unmon = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g sprout")
+    q = exec::Run(host=self.host, command="/usr/sbin/service sprout quiesce", requires=unmon, provides=self.fsm, send_event=true)
+end
+
+implement Sprout using decommission, decommissionSprout when decommission
 implement Sprout using sproutMemento when memento
 implement Sprout using sprout, clearwaterService, chronos
 implement Sprout using sproutDNS when clearwater.create_dns_records and create_dns_records
@@ -334,6 +350,13 @@ implementation dimeDNS for Dime:
     dns::A(zone=clearwater.private_zone, resource="ralf", ipaddress=host.private_ip.v4)
 end
 
+implementation decommissionDime for Dime:
+    unmon = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g homestead && /usr/bin/monit unmonitor -g homestead-prov && /usr/bin/monit unmonitor -g ralf")
+    q = exec::Run(host=self.host, command="/usr/sbin/service homestead stop && /usr/sbin/service homestead-prov stop && /usr/sbin/service ralf stop",
+                  requires=unmon, provides=self.fsm, send_event=true)
+end
+
+implement Dime using decommission, decommissionDime when decommission
 implement Dime using dime, clearwaterService
 implement Dime using dimeDNS when clearwater.create_dns_records and create_dns_records
 
@@ -353,6 +376,16 @@ implementation vellumDNS for Vellum:
     dns::A(zone=clearwater.private_zone, resource="vellum", ipaddress=host.private_ip.v4)
 end
 
+implementation decommissionVellum for Vellum:
+    unmon_ccm = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g clearwater_cluster_manager")
+    unmon_cm = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g clearwater_config_manager", requires=unmon_ccm)
+    unmon_qm = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g clearwater_queue_manager", requires=unmon_cm)
+    unmon_etcd = exec::Run(host=self.host, command="/usr/bin/monit unmonitor -g etcd", requires=unmon_qm)
+    q = exec::Run(host=self.host, command="/usr/sbin/service clearwater-etcd decommission",
+                  requires=unmon_etcd, provides=self.fsm, send_event=true)
+end
+
+implement Vellum using decommission, decommissionVellum when decommission
 implement Vellum using vellum, vellumMemento, clearwaterService
 implement Vellum using vellumDNS when clearwater.create_dns_records and create_dns_records
 

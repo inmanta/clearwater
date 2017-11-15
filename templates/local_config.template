@@ -5,4 +5,4 @@ public_hostname={{host.name | std.replace(clearwater.private_domain, clearwater.
 {% else %}
 public_hostname={{host.name}}
 {% endif %}
-etcd_cluster="{{ clearwater.hosts | map(attribute="ip") | sort | join(",") }}"
+etcd_cluster="{{ clearwater.vellum | map(attribute="host") | map(attribute="ip") | sort | join(",") }}"

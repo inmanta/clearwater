@@ -1,0 +1,33 @@
+var proc = stream
+    |from()
+        .measurement('exec_monit')
+        .groupBy('host', 'process')
+    |eval(lambda: int("status"), lambda: int("monitored"))
+        .as('status', 'monitored')
+
+var up = proc
+    |groupBy('host', 'vnf')
+    |where(lambda: "status" == 0)
+    |count('status')
+        .as('up')
+
+var monitored = proc
+    |groupBy('host', 'vnf')
+    |where(lambda: "monitored" > 0)
+    |count('monitored')
+        .as('monitored')
+
+var total = proc
+    |groupBy('host', 'vnf')
+    |count('status')
+        .as('total')
+
+var service = up
+    |join(monitored, total)
+        .as('up', 'monitored', 'total')
+        .streamName('monit')
+    |eval(lambda: "up.up", lambda: "monitored.monitored", lambda: "total.total", lambda: "total.total" - "up.up")
+        .as('up', 'monitored', 'total', 'down')
+    |influxDBOut()
+        .database('lma')
+        .retentionPolicy('autogen')
