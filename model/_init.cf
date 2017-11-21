@@ -14,7 +14,24 @@ import ip::services
 import logging
 import param
 
-entity ClearWater:
+versions = {
+    "127": "http://repo.cw-ngv.com/archive/repo127/",
+    "128": "http://repo.cw-ngv.com/stable/"
+}
+
+upgrade_order = ["vellum", "dime", "homer", "sprout", "bono", "ellis"]
+
+entity VersionUpgrade:
+    """
+        This entity is used for all components and services that are upgradable. It sets the current version and a version to
+        upgrade to.
+    """
+    string version
+    string upgrade_version
+    string name
+end
+
+entity ClearWater extends VersionUpgrade:
     """
         The clearwater service.
     """
@@ -27,7 +44,13 @@ entity ClearWater:
     number number_cnt=1000
 end
 
-implement ClearWater using std::none
+implement ClearWater using selectVersion
+
+implementation selectVersion for ClearWater:
+    self.name = "clearwater"
+    self.version = clearwater::select_service_version(self)
+    self.fsm = clearwater::state::ServiceState()
+end
 
 entity Host extends ip::Host:
 end
@@ -56,7 +79,7 @@ Host.clearwater   [1] -- ClearWater.hosts [0:]
 ClearWater.public_zone [0:1] -- dns::Zone
 ClearWater.private_zone [0:1] -- dns::Zone
 
-entity ClearwaterService extends ip::services::Server:
+entity ClearwaterService extends ip::services::Server, VersionUpgrade:
     """
         A clearwater service component
     """
@@ -65,7 +88,11 @@ entity ClearwaterService extends ip::services::Server:
     string vnf_name
     number vnf_instance
     bool decommission
+    bool upgrade
+    string repo
 end
+
+ClearWater.services [0:] -- ClearwaterService
 
 # Use this package as synchronisation point
 ClearwaterService.cw_mgmt [1] -- std::Package
@@ -168,8 +195,17 @@ entity Vellum extends ClearwaterService:
 end
 
 implementation clearwaterService for ClearwaterService:
+    # model "bookkeeping"
+    self.clearwater.services = self
     self.instance_name = "{{vnf_name}}-{{vnf_instance}}"
-    apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url="http://repo.cw-ngv.com/archive/repo127/")
+    self.name = "{{vnf_name}}_{{vnf_instance}}"
+
+    # versioning
+    self.version = clearwater::get_current_version(self)
+    self.upgrade_version = clearwater::get_upgrade_version(self)
+
+    # generic for all clearwater components
+    apt::Repository(host=host, name="clearwater", release="binary/", repo="", base_url=self.repo)
 
     cwdir = std::DefaultDirectory(host=host, path="/etc/clearwater")
     f_c = std::ConfigFile(host=host, path="/etc/clearwater/local_config", requires=cwdir,
@@ -198,10 +234,19 @@ implementation clearwaterService for ClearwaterService:
 
     # Add statemachine
     clearwater::state::VNFCState(service=self)
+
+    # current version
+    std::ConfigFile(host=self.host, path="/etc/clearwater-version", content=self.version)
 end
 
 implementation decommission for ClearwaterService:
+    # Implementation for all components added when the service is decommissioned
+end
 
+implementation upgrade for ClearwaterService:
+    script = std::File(host=self.host, path="/usr/bin/upgrade.sh", mode=755, owner="root", group="root",
+                       content=std::source("clearwater/upgrade.sh"))
+    exec::Run(host=self.host, command="/usr/bin/upgrade.sh", provides=self.fsm, send_event=true, timeout=1800)
 end
 
 implementation chronos for ClearwaterService:
@@ -258,7 +303,7 @@ implementation ellis for Ellis:
 
     # provision telephone numbers (run this everytime, it is idempotent
     exec::Run(host=host, command="/usr/share/clearwater/ellis/env/bin/python create_numbers.py --start {{ clearwater.base_number }} --count {{ clearwater.number_cnt }}",
-              cwd="/usr/share/clearwater/ellis/src/metaswitch/ellis/tools/", requires=[config])
+              cwd="/usr/share/clearwater/ellis/src/metaswitch/ellis/tools/", requires=[config], skip_on_fail=true)
 end
 
 implementation ellisDNS for Ellis:
@@ -388,6 +433,7 @@ end
 implement Vellum using decommission, decommissionVellum when decommission
 implement Vellum using vellum, vellumMemento, clearwaterService
 implement Vellum using vellumDNS when clearwater.create_dns_records and create_dns_records
+implement Vellum using upgrade when upgrade
 
 ## Managed DNS
 # By default each hosts adds its hostname to the private zone

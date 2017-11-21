@@ -8,6 +8,7 @@ import state
 import clearwater
 import exec
 
+## VNF LifeCycle
 entity VNFCState extends state::StateMachine:
     """
         This entity models the state machine that manages an instance (VNFC) of a VNF
@@ -16,11 +17,16 @@ end
 
 VNFCState.service [1] -- clearwater::ClearwaterService.fsm [1]
 
-initial = state::State(name="initial", values={"dns_records": false, "decommission": false})
-up = state::State(name="up", label="success", values={"dns_records": true, "decommission": false})
-decommission = state::State(name="decommission", label="warning", values={"dns_records": false, "decommission": true})
-remove = state::State(name="remove", label="warning", values={"dns_records": false, "decommission": false})
-error = state::State(name="error", label="danger", values={"dns_records": true, "decommission": false})
+initial = state::State(name="initial", values={"dns_records": false, "decommission": false, "upgrade": false})
+up = state::State(name="up", label="success", values={"dns_records": true, "decommission": false, "upgrade": false})
+decommission = state::State(name="decommission", label="warning", values={"dns_records": false, "decommission": true, "upgrade": false})
+remove = state::State(name="remove", label="warning", values={"dns_records": false, "decommission": false, "upgrade": false})
+error = state::State(name="error", label="danger", values={"dns_records": true, "decommission": false, "upgrade": false})
+
+upgrading = state::State(name="upgrading", label="warning", values={"dns_records": true, "decommission": false,
+                                                                    "upgrade": true})
+upgrade_done = state::State(name="upgrade_done", label="info", values={"dns_records": true, "decommission": false,
+                                                                       "upgrade": false})
 
 implementation vnfcFSMConfig for VNFCState:
     """
@@ -28,21 +34,22 @@ implementation vnfcFSMConfig for VNFCState:
     """
     # Give the FSM its config
     self.config = state::StateConfig(
-        states=[initial, up, decommission, remove, error],
+        states=[initial, up, decommission, remove, error, upgrading, upgrade_done],
         initial_state=initial,
         allowed_transfers=[
             state::StateTransfer(from=initial, to=up, error=error),
             state::StateTransfer(from=up, to=decommission, error=error),
+            state::StateTransfer(from=up, to=upgrading, error=error),
+            state::StateTransfer(from=upgrading, to=upgrade_done, error=error),
+            state::StateTransfer(from=upgrade_done, to=up, error=error),
             state::StateTransfer(from=decommission, to=remove, error=error)
-            #state::StateTransfer(from=configured, to=started, transition=starting, error=error, operation="start"),
-            #state::StateTransfer(from=started, to=configured, transition=stopping, error=error, operation="stop"),
-            #state::StateTransfer(from=configured, to=initial, transition=deleting, error=error, operation="delete")
         ]
     )
 
     # Set the current state (stored in the orchestrator)
     self.name = "{{ service.vnf_name }}_{{ service.vnf_instance }}"
     self.state = state::current_state(self)
+    self.parent = self.service.clearwater.fsm
 end
 
 implementation vnfcStateConfig for VNFCState:
@@ -52,6 +59,8 @@ implementation vnfcStateConfig for VNFCState:
     """
     self.service.create_dns_records = state::fsmvalue(self, "dns_records")
     self.service.decommission = state::fsmvalue(self, "decommission")
+    self.service.upgrade = state::fsmvalue(self, "upgrade")
+    self.service.repo = clearwater::select_repo(self.service, clearwater::versions)
 end
 implement VNFCState using vnfcFSMConfig, vnfcStateConfig
 
@@ -61,7 +70,7 @@ implementation vnfcInitial for VNFCState:
         configuration has been synchronised (cw-check_config_sync)
     """
     check = exec::Run(host=self.service.host, requires=self.service.cw_mgmt, send_event=true,
-                      command="/usr/bin/cw-check_config_sync")
+                      command="/usr/bin/cw-check_config_sync", skip_on_fail=true, timeout=1800)
     state::Transition(fsm=self, to=up, on_error=initial, requires=[check, self.requires])
 end
 
@@ -75,7 +84,15 @@ implementation vnfcUp for VNFCState:
     state::Transition(fsm=self, to=up, on_error=initial, requires=self.requires)
 end
 
-implement VNFCState using vnfcUp when self.state == up
+implementation vnfcUp2Upgrade for VNFCState:
+    """
+        When the service is up and the version != upgrade_version we transition to the upgrade state.
+    """
+    state::Transition(fsm=self, to=upgrading, on_error=initial, requires=self.requires)
+end
+
+implement VNFCState using vnfcUp when self.state == up and self.service.version == self.service.upgrade_version
+implement VNFCState using vnfcUp2Upgrade when self.state == up and self.service.version != self.service.upgrade_version
 
 implementation vnfcDecommission for VNFCState:
     """
@@ -94,9 +111,113 @@ implementation vnfcRemove for VNFCState:
 end
 implement VNFCState using vnfcRemove when self.state == remove
 
+implementation vnfcUpgrade for VNFCState:
+    """
+        The configuration for the upgrade state.
+    """
+    state::Transition(fsm=self, to=upgrade_done, on_error=upgrading, requires=self.requires)
+end
+implement VNFCState using vnfcUpgrade when self.state == upgrading
+
+implementation vnfcUpgradeDone for VNFCState:
+    """
+        The configuration for the upgrade done state.
+
+        This will move the upgrade to the next vnf and finish the upgrade of the current one
+    """
+    next_vnf = clearwater::next_upgrade(self.service.clearwater, clearwater::upgrade_order, self.service)
+    clearwater::set_upgrade(next_vnf, self.service.clearwater)
+
+    clearwater::finish_upgrade(self.service)
+    state::Transition(fsm=self, to=up, on_error=initial, requires=self.requires)
+end
+implement VNFCState using vnfcUpgradeDone when self.state == upgrade_done
+
 implementation vnfError for VNFCState:
     check = exec::Run(host=self.service.host, requires=self.service.cw_mgmt, send_event=true,
                       command="/bin/true")
     state::Transition(fsm=self, to=initial, on_error=error, requires=check)
 end
 implement VNFCState using vnfError when self.state == error
+
+## Service Lifecycle
+entity ServiceState extends state::StateMachine:
+    """
+        This entity models the state machine that manages the complete service
+    """
+end
+
+ServiceState.service [1] -- clearwater::ClearWater.fsm [1]
+
+serviceBoot = state::State(name="boot")
+serviceUp = state::State(name="up", label="success")
+serviceUpgrading = state::State(name="upgrading", label="warning")
+
+implement ServiceState using serviceConfig
+
+implementation serviceConfig for ServiceState:
+    """
+        This implementation configures the state machine
+    """
+    # Give the FSM its config
+    self.config = state::StateConfig(
+        states=[serviceBoot, serviceUp, serviceUpgrading],
+        initial_state=serviceBoot,
+        allowed_transfers=[
+            state::StateTransfer(from=serviceBoot, to=serviceUp, error=serviceBoot),
+        ]
+    )
+
+    # Set the current state (stored in the orchestrator)
+    self.name = "clearwater"
+    self.state = state::current_state(self)
+end
+
+implementation boot for ServiceState:
+    """
+        The service is in boot state
+    """
+    state::Transition(fsm=self, to=state::child_state(self, [up], serviceUp, serviceBoot),
+                      on_error=serviceBoot, requires=self.requires)
+end
+
+implement ServiceState using boot when self.state == serviceBoot
+
+implementation up for ServiceState:
+end
+
+implement ServiceState using up when self.state == serviceUp
+
+implementation preUpgrade for ServiceState:
+    """
+        This implementation is selected when the service is up and an upgrade is selected. It will put the first vnf in the
+        upgrade state and the vnf itself as well.
+    """
+    state::Transition(fsm=self, to=serviceUpgrading, on_error=serviceBoot, requires=self.requires)
+
+    # push the first VNFM into the upgrade state
+    first_vnf = clearwater::next_upgrade(self.service, clearwater::upgrade_order)
+    clearwater::set_upgrade(first_vnf, self.service)
+end
+
+implement ServiceState using preUpgrade when self.state == serviceUp and self.service.version != self.service.upgrade_version
+
+implementation upgrading for ServiceState:
+    """
+        The state during the upgrade of each of the vnfs.
+    """
+    state::Transition(fsm=self, to=serviceUpgrading, on_error=serviceBoot, requires=self.requires)
+end
+
+implement ServiceState using upgrading when self.state == serviceUpgrading and self.service.version != self.service.upgrade_version
+
+implementation upgradeReady for ServiceState:
+    """
+        When the last vnf in the chain is ready it will set the current version of the upgrade version. Transition to
+        up when all childeren are up as well.
+    """
+    state::Transition(fsm=self, to=state::child_state(self, [up], serviceUp, serviceUpgrading),
+                      on_error=serviceBoot, requires=self.requires)
+end
+
+implement ServiceState using upgradeReady when self.state == serviceUpgrading and self.service.version == self.service.upgrade_version

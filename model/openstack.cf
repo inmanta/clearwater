@@ -22,7 +22,6 @@ entity ManagedClearWater extends ClearWater:
     number dime_instances
 
     string image_id
-    string flavor
 end
 
 ManagedClearWater.vm_os             [1] -- std::OS
@@ -45,8 +44,11 @@ entity ClearwaterVNF:
     """
     string name
     number? instances
-    number min_instances=1
+    number min_instances=2
     number max_instances=10
+    number flavor_n_cpu=2
+    number flavor_mem=2
+    string flavor_id
 end
 
 entity Host extends openstack::Host, clearwater::Host:
@@ -78,31 +80,32 @@ implement SecurityGroup using vnfSec
 
 entity Homer extends ClearwaterVNF:
 end
-implement Homer using mHomer
+implement Homer using mHomer, flavor
 
 entity Ellis extends ClearwaterVNF:
+    number min_instances=1
     number max_instances=1
 end
-implement Ellis using mEllis
+implement Ellis using mEllis, flavor
 
 entity Bono extends ClearwaterVNF:
 end
-implement Bono using mBono
+implement Bono using mBono, flavor
 
 entity Sprout extends ClearwaterVNF:
     bool memento=true
 end
-implement Sprout using mSprout
+implement Sprout using mSprout, flavor
 implement Sprout using mSproutMemento when memento
 
 entity Dime extends ClearwaterVNF:
 end
-implement Dime using mDime
+implement Dime using mDime, flavor
 
 entity Vellum extends ClearwaterVNF:
     number min_instances=3
 end
-implement Vellum using mVellum
+implement Vellum using mVellum, flavor
 
 implementation mDefaults for ManagedClearWater:
     self.vm_os = ubuntu::ubuntu1404
@@ -122,12 +125,16 @@ implementation mDefaults for ManagedClearWater:
     Homer(clearwater=self, instances=self.homer_instances)
     Dime(clearwater=self, instances=self.dime_instances)
     Bono(clearwater=self, instances=self.bono_instances)
-    Vellum(clearwater=self, instances=self.vellum_instances)
+    Vellum(clearwater=self, instances=self.vellum_instances, flavor_mem=4)
     Sprout(clearwater=self, instances=self.sprout_instances)
 end
 
-implement ManagedClearWater using mDefaults
+implement ManagedClearWater using mDefaults, clearwater::selectVersion
 implement ManagedClearWater using clearwaterDNS when create_dns_records
+
+implementation flavor for ClearwaterVNF:
+    self.flavor_id = openstack::find_flavor(self.clearwater.provider, self.flavor_n_cpu, flavor_mem)
+end
 
 ## Each implementation start the required number of virtual machines and setup security groups
 ## http://clearwater.readthedocs.io/en/stable/Clearwater_IP_Port_Usage.html
@@ -146,7 +153,7 @@ implementation mEllis for Ellis:
     instances = clearwater::instances(self)
     for i in instances:
         host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    image=clearwater.image_id, flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups=[clearwater.base_group, sg]
 
@@ -182,7 +189,7 @@ implementation mBono for Bono:
     instances = clearwater::instances(self)
     for i in instances:
         host = Host(provider=clearwater.provider, project=clearwater.project, name="{{ name }}-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    image=clearwater.image_id, flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
@@ -214,7 +221,7 @@ implementation mSprout for Sprout:
 
     for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="sprout-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    image=clearwater.image_id, flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
@@ -239,7 +246,7 @@ implementation mHomer for Homer:
 
     for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="homer-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    image=clearwater.image_id, flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
@@ -264,7 +271,7 @@ implementation mDime for Dime:
 
     for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="dime-{{i}}.{{clearwater.private_domain}}",
-                    image=clearwater.image_id, flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
+                    image=clearwater.image_id, flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404,
                     subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
@@ -294,7 +301,7 @@ implementation mVellum for Vellum:
 
     for i in clearwater::instances(self):
         host = Host(provider=clearwater.provider, project=clearwater.project, name="vellum-{{i}}.{{clearwater.private_domain}}", image=clearwater.image_id,
-                    flavor=clearwater.flavor, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404, subnet=clearwater.mgmt_network, vnf=self)
+                    flavor=self.flavor_id, key_pair=clearwater.key_pair, os=ubuntu::ubuntu1404, subnet=clearwater.mgmt_network, vnf=self)
         host.vm.security_groups = [clearwater.base_group, sg]
 
         clearwater::Vellum(clearwater=clearwater, host=host, vnf_instance=i, vnf=self)
