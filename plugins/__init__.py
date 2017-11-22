@@ -34,7 +34,7 @@ def set_state(ctx, fsm_name, value, metadata):
     env = config.Config.get("config", "environment", None)
 
     def set_state():
-        return ctx.get_client().set_param(tid=env, id=fsm_name, value=value, source="plugin", metadata=metadata)
+        return ctx.get_client().set_param(tid=env, id=fsm_name, value=value, source="plugin", metadata=metadata, recompile=True)
 
     result = ctx.run_sync(set_state)
 
@@ -197,7 +197,7 @@ def set_upgrade(ctx: Context, component: "any", service: "clearwater::ClearWater
         set_param(ctx, param_name, component.clearwater.upgrade_version, True)
     else:
         param_name = service.name + "_version"
-        set_param(ctx, param_name, service.upgrade_version)
+        set_param(ctx, param_name, service.upgrade_version, True)
 
 
 @plugin
