@@ -247,7 +247,7 @@ implementation upgrade for ClearwaterService:
     script = std::File(host=self.host, path="/usr/bin/upgrade.sh", mode=755, owner="root", group="root",
                        content=std::source("clearwater/upgrade.sh"))
     exec::Run(host=self.host, command="/usr/bin/upgrade.sh", provides=self.fsm, send_event=true, timeout=1800,
-              requires=script)
+              requires=script, env={"PATH": "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/sbin:/bin"})
 end
 
 implementation chronos for ClearwaterService:
