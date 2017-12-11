@@ -184,6 +184,7 @@ end
 implement ServiceState using boot when self.state == serviceBoot
 
 implementation up for ServiceState:
+    state::Transition(fsm=self, to=serviceUp, on_error=serviceBoot, requires=self.requires)
 end
 
 implement ServiceState using up when self.state == serviceUp
