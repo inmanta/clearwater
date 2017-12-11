@@ -187,7 +187,7 @@ implementation up for ServiceState:
     state::Transition(fsm=self, to=serviceUp, on_error=serviceBoot, requires=self.requires)
 end
 
-implement ServiceState using up when self.state == serviceUp
+implement ServiceState using up when self.state == serviceUp and self.service.version == self.service.upgrade_version
 
 implementation preUpgrade for ServiceState:
     """
