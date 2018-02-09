@@ -16,7 +16,7 @@ import param
 
 versions = {
     "127": "http://repo.cw-ngv.com/archive/repo127/",
-    "128": "http://repo.cw-ngv.com/stable/"
+    "128": "http://repo.cw-ngv.com/archive/repo128/"
 }
 
 upgrade_order = ["vellum", "dime", "homer", "sprout", "bono", "ellis"]
@@ -219,7 +219,7 @@ implementation clearwaterService for ClearwaterService:
     self.clearwater.hosts = self.host
 
     # Sometimes the etc state dir is not created
-    std::Directory(host=host, path="/var/lib/clearwater-etcd", owner="clearwater-etcd", group="clearwater-etcd", mode="770",
+    std::Directory(host=host, path="/var/lib/clearwater-etcd", owner="clearwater-etcd", group="clearwater-etcd", mode=770,
                    requires=p_mgmt)
 
     # Only update these when clearwater packages have been installed
