@@ -1,1 +1,770 @@
-{"meta":{"type":"db","canSave":true,"canEdit":true,"canStar":true,"slug":"vnf-scale","expires":"0001-01-01T00:00:00Z","created":"2017-11-10T11:47:23Z","updated":"2017-11-10T12:07:39Z","updatedBy":"admin","createdBy":"admin","version":4},"dashboard":{"annotations":{"list":[]},"editable":true,"gnetId":null,"graphTooltip":0,"hideControls":false,"id":3,"links":[],"refresh":"5s","rows":[{"collapse":false,"height":"250px","panels":[{"aliasColors":{},"bars":false,"datasource":null,"fill":1,"id":1,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":1,"links":[],"nullPointMode":"null","percentage":false,"pointradius":5,"points":false,"renderer":"flot","seriesOverrides":[{"alias":"/^scale .*/","yaxis":2}],"span":6,"stack":false,"steppedLine":false,"targets":[{"alias":"mean cpu $tag_vnf","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["vnf"],"type":"tag"},{"params":["null"],"type":"fill"}],"hide":false,"measurement":"vnf_scale","policy":"default","query":"SELECT 100-mean(\"usage_idle\") FROM \"cpu\" WHERE \"vnf\" =~ /^$VNF$/ AND $timeFilter GROUP BY time(10s), \"vnf\" fill(null)","rawQuery":false,"refId":"A","resultFormat":"time_series","select":[[{"params":["util"],"type":"field"},{"params":[],"type":"mean"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]}],"thresholds":[{"colorMode":"critical","fill":true,"line":true,"op":"gt","value":60}],"timeFrom":null,"timeShift":null,"title":"Mean CPU usage per VNF","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"percent","label":"Mean CPU usage","logBase":1,"max":"100","min":"0","show":true},{"format":"short","label":"","logBase":1,"max":null,"min":"0","show":true}]},{"aliasColors":{},"bars":false,"datasource":null,"fill":1,"id":2,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":1,"links":[],"nullPointMode":"null","percentage":false,"pointradius":5,"points":false,"renderer":"flot","seriesOverrides":[{"alias":"/^scale .*/","yaxis":2}],"span":6,"stack":false,"steppedLine":false,"targets":[{"alias":"requested $tag_vnf","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["vnf"],"type":"tag"},{"params":["null"],"type":"fill"}],"measurement":"vnf_scale","policy":"default","refId":"B","resultFormat":"time_series","select":[[{"params":["scale"],"type":"field"},{"params":[],"type":"mean"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]},{"alias":"active $tag_vnf","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["vnf"],"type":"tag"},{"params":["null"],"type":"fill"}],"measurement":"vnf_scale","policy":"default","refId":"A","resultFormat":"time_series","select":[[{"params":["hosts"],"type":"field"},{"params":[],"type":"mean"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]}],"thresholds":[],"timeFrom":null,"timeShift":null,"title":"VNF Scale","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"none","label":"","logBase":1,"max":null,"min":"0","show":true},{"format":"short","label":"","logBase":1,"max":null,"min":"0","show":true}]}],"repeat":null,"repeatIteration":null,"repeatRowId":null,"showTitle":false,"title":"Dashboard Row","titleSize":"h6"},{"collapse":false,"height":250,"panels":[{"aliasColors":{},"bars":false,"datasource":null,"fill":10,"id":3,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":0,"links":[],"nullPointMode":"null","percentage":false,"pointradius":5,"points":false,"renderer":"flot","seriesOverrides":[{"alias":"monitored","color":"#1F78C1"},{"alias":"unmonitored","color":"#EA6460"}],"span":6,"stack":true,"steppedLine":false,"targets":[{"alias":"monitored","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["null"],"type":"fill"}],"measurement":"monit","policy":"default","refId":"A","resultFormat":"time_series","select":[[{"params":["monitored"],"type":"field"},{"params":[],"type":"sum"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]},{"alias":"unmonitored","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["null"],"type":"fill"}],"measurement":"monit","policy":"default","query":"SELECT sum(\"total\") - sum(\"monitored\") FROM \"monit\" WHERE \"vnf\" =~ /^$VNF$/ AND $timeFilter GROUP BY time(10s) fill(null)","rawQuery":true,"refId":"B","resultFormat":"time_series","select":[[{"params":["down"],"type":"field"},{"params":[],"type":"sum"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]}],"thresholds":[],"timeFrom":null,"timeShift":null,"title":"VNF monitored services","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"short","label":"","logBase":1,"max":null,"min":"0","show":true},{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true}]},{"aliasColors":{},"bars":false,"datasource":null,"fill":10,"id":4,"legend":{"avg":false,"current":false,"max":false,"min":false,"show":true,"total":false,"values":false},"lines":true,"linewidth":0,"links":[],"nullPointMode":"null","percentage":false,"pointradius":5,"points":false,"renderer":"flot","seriesOverrides":[{"alias":"up","color":"#508642"},{"alias":"down","color":"#890F02"}],"span":6,"stack":true,"steppedLine":false,"targets":[{"alias":"up","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["null"],"type":"fill"}],"measurement":"monit","policy":"default","refId":"A","resultFormat":"time_series","select":[[{"params":["up"],"type":"field"},{"params":[],"type":"sum"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]},{"alias":"down","dsType":"influxdb","groupBy":[{"params":["10s"],"type":"time"},{"params":["null"],"type":"fill"}],"measurement":"monit","policy":"default","refId":"B","resultFormat":"time_series","select":[[{"params":["down"],"type":"field"},{"params":[],"type":"sum"}]],"tags":[{"key":"vnf","operator":"=~","value":"/^$VNF$/"}]}],"thresholds":[],"timeFrom":null,"timeShift":null,"title":"VNF Service state (monit)","tooltip":{"shared":true,"sort":0,"value_type":"individual"},"type":"graph","xaxis":{"mode":"time","name":null,"show":true,"values":[]},"yaxes":[{"format":"short","label":"","logBase":1,"max":null,"min":"0","show":true},{"format":"short","label":null,"logBase":1,"max":null,"min":null,"show":true}]}],"repeat":null,"repeatIteration":null,"repeatRowId":null,"showTitle":false,"title":"Dashboard Row","titleSize":"h6"}],"schemaVersion":14,"style":"dark","tags":[],"templating":{"list":[{"allValue":null,"current":{"tags":[],"text":"All","value":["$__all"]},"datasource":"Influxdb","hide":0,"includeAll":true,"label":"","multi":true,"name":"VNF","options":[{"selected":true,"text":"All","value":"$__all"},{"selected":false,"text":"bono","value":"bono"},{"selected":false,"text":"dime","value":"dime"},{"selected":false,"text":"ellis","value":"ellis"},{"selected":false,"text":"homer","value":"homer"},{"selected":false,"text":"sprout","value":"sprout"},{"selected":false,"text":"vellum","value":"vellum"}],"query":"SHOW TAG VALUES FROM \"cpu\" WITH KEY = \"vnf\"\t","refresh":0,"regex":"","sort":1,"tagValuesQuery":"","tags":[],"tagsQuery":"","type":"query","useTags":false}]},"time":{"from":"now-1h","to":"now"},"timepicker":{"refresh_intervals":["5s","10s","30s","1m","5m","15m","30m","1h","2h","1d"],"time_options":["5m","15m","1h","6h","12h","24h","2d","7d","30d"]},"timezone":"browser","title":"VNF Scale","version":4}}
+{
+    "meta": {
+        "type": "db",
+        "canSave": true,
+        "canEdit": true,
+        "canStar": true,
+        "slug": "vnf-scale",
+        "expires": "0001-01-01T00:00:00Z",
+        "created": "2017-11-10T11:47:23Z",
+        "updated": "2017-11-10T12:07:39Z",
+        "updatedBy": "admin",
+        "createdBy": "admin",
+        "version": 4
+    },
+    "dashboard": {
+        "annotations": {
+            "list": []
+        },
+        "editable": true,
+        "gnetId": null,
+        "graphTooltip": 0,
+        "hideControls": false,
+        "id": 3,
+        "links": [],
+        "refresh": "5s",
+        "rows": [
+            {
+                "collapse": false,
+                "height": "250px",
+                "panels": [
+                    {
+                        "aliasColors": {},
+                        "bars": false,
+                        "datasource": null,
+                        "fill": 1,
+                        "id": 1,
+                        "legend": {
+                            "avg": false,
+                            "current": false,
+                            "max": false,
+                            "min": false,
+                            "show": true,
+                            "total": false,
+                            "values": false
+                        },
+                        "lines": true,
+                        "linewidth": 1,
+                        "links": [],
+                        "nullPointMode": "null",
+                        "percentage": false,
+                        "pointradius": 5,
+                        "points": false,
+                        "renderer": "flot",
+                        "seriesOverrides": [
+                            {
+                                "alias": "/^scale .*/",
+                                "yaxis": 2
+                            }
+                        ],
+                        "span": 6,
+                        "stack": false,
+                        "steppedLine": false,
+                        "targets": [
+                            {
+                                "alias": "mean cpu $tag_vnf",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "vnf"
+                                        ],
+                                        "type": "tag"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "hide": false,
+                                "measurement": "vnf_scale",
+                                "policy": "default",
+                                "query": "SELECT 100-mean(\"usage_idle\") FROM \"cpu\" WHERE \"vnf\" =~ /^$VNF$/ AND $timeFilter GROUP BY time($__interval), \"vnf\" fill(null)",
+                                "rawQuery": false,
+                                "refId": "A",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "util"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "mean"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            }
+                        ],
+                        "thresholds": [
+                            {
+                                "colorMode": "critical",
+                                "fill": true,
+                                "line": true,
+                                "op": "gt",
+                                "value": 60
+                            }
+                        ],
+                        "timeFrom": null,
+                        "timeShift": null,
+                        "title": "Mean CPU usage per VNF",
+                        "tooltip": {
+                            "shared": true,
+                            "sort": 0,
+                            "value_type": "individual"
+                        },
+                        "type": "graph",
+                        "xaxis": {
+                            "mode": "time",
+                            "name": null,
+                            "show": true,
+                            "values": []
+                        },
+                        "yaxes": [
+                            {
+                                "format": "percent",
+                                "label": "Mean CPU usage",
+                                "logBase": 1,
+                                "max": "100",
+                                "min": "0",
+                                "show": true
+                            },
+                            {
+                                "format": "short",
+                                "label": "",
+                                "logBase": 1,
+                                "max": null,
+                                "min": "0",
+                                "show": true
+                            }
+                        ]
+                    },
+                    {
+                        "aliasColors": {},
+                        "bars": false,
+                        "datasource": null,
+                        "fill": 1,
+                        "id": 2,
+                        "legend": {
+                            "avg": false,
+                            "current": false,
+                            "max": false,
+                            "min": false,
+                            "show": true,
+                            "total": false,
+                            "values": false
+                        },
+                        "lines": true,
+                        "linewidth": 1,
+                        "links": [],
+                        "nullPointMode": "null",
+                        "percentage": false,
+                        "pointradius": 5,
+                        "points": false,
+                        "renderer": "flot",
+                        "seriesOverrides": [
+                            {
+                                "alias": "/^scale .*/",
+                                "yaxis": 2
+                            }
+                        ],
+                        "span": 6,
+                        "stack": false,
+                        "steppedLine": false,
+                        "targets": [
+                            {
+                                "alias": "requested $tag_vnf",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "vnf"
+                                        ],
+                                        "type": "tag"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "vnf_scale",
+                                "policy": "default",
+                                "refId": "B",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "scale"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "mean"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            },
+                            {
+                                "alias": "active $tag_vnf",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "vnf"
+                                        ],
+                                        "type": "tag"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "vnf_scale",
+                                "policy": "default",
+                                "refId": "A",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "hosts"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "mean"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeFrom": null,
+                        "timeShift": null,
+                        "title": "VNF Scale",
+                        "tooltip": {
+                            "shared": true,
+                            "sort": 0,
+                            "value_type": "individual"
+                        },
+                        "type": "graph",
+                        "xaxis": {
+                            "mode": "time",
+                            "name": null,
+                            "show": true,
+                            "values": []
+                        },
+                        "yaxes": [
+                            {
+                                "format": "none",
+                                "label": "",
+                                "logBase": 1,
+                                "max": null,
+                                "min": "0",
+                                "show": true
+                            },
+                            {
+                                "format": "short",
+                                "label": "",
+                                "logBase": 1,
+                                "max": null,
+                                "min": "0",
+                                "show": true
+                            }
+                        ]
+                    }
+                ],
+                "repeat": null,
+                "repeatIteration": null,
+                "repeatRowId": null,
+                "showTitle": false,
+                "title": "Dashboard Row",
+                "titleSize": "h6"
+            },
+            {
+                "collapse": false,
+                "height": 250,
+                "panels": [
+                    {
+                        "aliasColors": {},
+                        "bars": false,
+                        "datasource": null,
+                        "fill": 10,
+                        "id": 3,
+                        "legend": {
+                            "avg": false,
+                            "current": false,
+                            "max": false,
+                            "min": false,
+                            "show": true,
+                            "total": false,
+                            "values": false
+                        },
+                        "lines": true,
+                        "linewidth": 0,
+                        "links": [],
+                        "nullPointMode": "null",
+                        "percentage": false,
+                        "pointradius": 5,
+                        "points": false,
+                        "renderer": "flot",
+                        "seriesOverrides": [
+                            {
+                                "alias": "monitored",
+                                "color": "#1F78C1"
+                            },
+                            {
+                                "alias": "unmonitored",
+                                "color": "#EA6460"
+                            }
+                        ],
+                        "span": 6,
+                        "stack": true,
+                        "steppedLine": false,
+                        "targets": [
+                            {
+                                "alias": "monitored",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "monit",
+                                "policy": "default",
+                                "refId": "A",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "monitored"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "sum"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            },
+                            {
+                                "alias": "unmonitored",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "monit",
+                                "policy": "default",
+                                "query": "SELECT sum(\"total\") - sum(\"monitored\") FROM \"monit\" WHERE \"vnf\" =~ /^$VNF$/ AND $timeFilter GROUP BY time($__interval) fill(null)",
+                                "rawQuery": true,
+                                "refId": "B",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "down"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "sum"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeFrom": null,
+                        "timeShift": null,
+                        "title": "VNF monitored services",
+                        "tooltip": {
+                            "shared": true,
+                            "sort": 0,
+                            "value_type": "individual"
+                        },
+                        "type": "graph",
+                        "xaxis": {
+                            "mode": "time",
+                            "name": null,
+                            "show": true,
+                            "values": []
+                        },
+                        "yaxes": [
+                            {
+                                "format": "short",
+                                "label": "",
+                                "logBase": 1,
+                                "max": null,
+                                "min": "0",
+                                "show": true
+                            },
+                            {
+                                "format": "short",
+                                "label": null,
+                                "logBase": 1,
+                                "max": null,
+                                "min": null,
+                                "show": true
+                            }
+                        ]
+                    },
+                    {
+                        "aliasColors": {},
+                        "bars": false,
+                        "datasource": null,
+                        "fill": 10,
+                        "id": 4,
+                        "legend": {
+                            "avg": false,
+                            "current": false,
+                            "max": false,
+                            "min": false,
+                            "show": true,
+                            "total": false,
+                            "values": false
+                        },
+                        "lines": true,
+                        "linewidth": 0,
+                        "links": [],
+                        "nullPointMode": "null",
+                        "percentage": false,
+                        "pointradius": 5,
+                        "points": false,
+                        "renderer": "flot",
+                        "seriesOverrides": [
+                            {
+                                "alias": "up",
+                                "color": "#508642"
+                            },
+                            {
+                                "alias": "down",
+                                "color": "#890F02"
+                            }
+                        ],
+                        "span": 6,
+                        "stack": true,
+                        "steppedLine": false,
+                        "targets": [
+                            {
+                                "alias": "up",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "monit",
+                                "policy": "default",
+                                "refId": "A",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "up"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "sum"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            },
+                            {
+                                "alias": "down",
+                                "dsType": "influxdb",
+                                "groupBy": [
+                                    {
+                                        "params": [
+                                            "$__interval"
+                                        ],
+                                        "type": "time"
+                                    },
+                                    {
+                                        "params": [
+                                            "null"
+                                        ],
+                                        "type": "fill"
+                                    }
+                                ],
+                                "measurement": "monit",
+                                "policy": "default",
+                                "refId": "B",
+                                "resultFormat": "time_series",
+                                "select": [
+                                    [
+                                        {
+                                            "params": [
+                                                "down"
+                                            ],
+                                            "type": "field"
+                                        },
+                                        {
+                                            "params": [],
+                                            "type": "sum"
+                                        }
+                                    ]
+                                ],
+                                "tags": [
+                                    {
+                                        "key": "vnf",
+                                        "operator": "=~",
+                                        "value": "/^$VNF$/"
+                                    }
+                                ]
+                            }
+                        ],
+                        "thresholds": [],
+                        "timeFrom": null,
+                        "timeShift": null,
+                        "title": "VNF Service state (monit)",
+                        "tooltip": {
+                            "shared": true,
+                            "sort": 0,
+                            "value_type": "individual"
+                        },
+                        "type": "graph",
+                        "xaxis": {
+                            "mode": "time",
+                            "name": null,
+                            "show": true,
+                            "values": []
+                        },
+                        "yaxes": [
+                            {
+                                "format": "short",
+                                "label": "",
+                                "logBase": 1,
+                                "max": null,
+                                "min": "0",
+                                "show": true
+                            },
+                            {
+                                "format": "short",
+                                "label": null,
+                                "logBase": 1,
+                                "max": null,
+                                "min": null,
+                                "show": true
+                            }
+                        ]
+                    }
+                ],
+                "repeat": null,
+                "repeatIteration": null,
+                "repeatRowId": null,
+                "showTitle": false,
+                "title": "Dashboard Row",
+                "titleSize": "h6"
+            }
+        ],
+        "schemaVersion": 14,
+        "style": "dark",
+        "tags": [],
+        "templating": {
+            "list": [
+                {
+                    "allValue": null,
+                    "current": {
+                        "tags": [],
+                        "text": "All",
+                        "value": [
+                            "$__all"
+                        ]
+                    },
+                    "datasource": "Influxdb",
+                    "hide": 0,
+                    "includeAll": true,
+                    "label": "",
+                    "multi": true,
+                    "name": "VNF",
+                    "options": [
+                        {
+                            "selected": true,
+                            "text": "All",
+                            "value": "$__all"
+                        },
+                        {
+                            "selected": false,
+                            "text": "bono",
+                            "value": "bono"
+                        },
+                        {
+                            "selected": false,
+                            "text": "dime",
+                            "value": "dime"
+                        },
+                        {
+                            "selected": false,
+                            "text": "ellis",
+                            "value": "ellis"
+                        },
+                        {
+                            "selected": false,
+                            "text": "homer",
+                            "value": "homer"
+                        },
+                        {
+                            "selected": false,
+                            "text": "sprout",
+                            "value": "sprout"
+                        },
+                        {
+                            "selected": false,
+                            "text": "vellum",
+                            "value": "vellum"
+                        }
+                    ],
+                    "query": "SHOW TAG VALUES FROM \"cpu\" WITH KEY = \"vnf\"\t",
+                    "refresh": 0,
+                    "regex": "",
+                    "sort": 1,
+                    "tagValuesQuery": "",
+                    "tags": [],
+                    "tagsQuery": "",
+                    "type": "query",
+                    "useTags": false
+                }
+            ]
+        },
+        "time": {
+            "from": "now-1h",
+            "to": "now"
+        },
+        "timepicker": {
+            "refresh_intervals": [
+                "5s",
+                "10s",
+                "30s",
+                "1m",
+                "5m",
+                "15m",
+                "30m",
+                "1h",
+                "2h",
+                "1d"
+            ],
+            "time_options": [
+                "5m",
+                "15m",
+                "1h",
+                "6h",
+                "12h",
+                "24h",
+                "2d",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser",
+        "title": "VNF Scale",
+        "version": 4
+    }
+}
