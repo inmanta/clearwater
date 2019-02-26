@@ -10,7 +10,9 @@ import openstack
 import exec
 
 implementation monitStatus for clearwater::openstack::Host:
-    lib = exec::Run(host=self, command="/usr/bin/pip3 install xmltodict", unless="python3 -c 'import xmltodict'")
+    p3 = std::Package(host=self, name="python3-pip", state="installed")
+
+    lib = exec::Run(host=self, command="/usr/bin/pip3 install xmltodict", unless="python3 -c 'import xmltodict'", requires=p3)
     script = std::File(host=self, path="/usr/local/bin/monit.py", owner="root", group="root", mode=755,
                        content=std::source("clearwater/lma/monit.py"), requires=lib)
     agent = self.lma_collector.telegraf_agent
