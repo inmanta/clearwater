@@ -124,7 +124,7 @@ entity Bono extends ClearwaterService:
 
         The Bono nodes form a horizontally scalable SIP edge proxy providing both a SIP IMS Gm
         compliant interface and a WebRTC interface to clients. Client connections are load balanced across the nodes.
-        The Bono node provides the anchor point for the client’s connection to the Clearwater system, including
+        The Bono node provides the anchor point for the client's connection to the Clearwater system, including
         support for various NAT traversal mechanisms. A client is therefore anchored to a particular Bono node for
         the duration of its registration, but can move to another Bono node if the connection or client fails.
 
@@ -157,12 +157,12 @@ end
 
 entity Dime extends ClearwaterService:
     """
-        Dime nodes run Clearwater’s Homestead and Ralf components.
+        Dime nodes run Clearwater's Homestead and Ralf components.
 
         - Homestead (HSS Cache) provides a web services interface to Sprout for retrieving authentication credentials and user
           profile information. It can either master the data (in which case it exposes a web services provisioning interface)
           or can pull the data from an IMS compliant HSS over the Cx interface. The Homestead nodes themselves are stateless -
-          the mastered / cached subscriber data is all stored on Vellum (via Cassandra’s Thrift interface).
+          the mastered / cached subscriber data is all stored on Vellum (via Cassandra's Thrift interface).
 
           In the IMS architecture, the HSS mirror function is considered to be part of the I-CSCF and S-CSCF components, so in
           Clearwater I-CSCF and S-CSCF function is implemented with a combination of Sprout and Dime clusters.
@@ -182,7 +182,7 @@ entity Vellum extends ClearwaterService:
         of cloud optimized, distributed storage clusters.
 
         - Cassandra. Cassandra is used by Homestead to store authentication credentials and profile information, and is used by Homer
-          to store MMTEL service settings. Vellum exposes Cassandra’s Thrift API.
+          to store MMTEL service settings. Vellum exposes Cassandra's Thrift API.
         - etcd. etcd is used by Vellum itself to share clustering information between Vellum nodes and by other nodes in the deployment
           for shared configuration. - Chronos. Chronos is a distributed, redundant, reliable timer service developed by Clearwater.
           It is used by Sprout and Ralf nodes to enable timers to be run (e.g. for SIP Registration expiry) without pinning operations
